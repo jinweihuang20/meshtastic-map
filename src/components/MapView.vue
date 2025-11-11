@@ -51,7 +51,9 @@ const fetchDeviceMetrics = async (nodeId) => {
     const timeFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const response = await fetch(`/api/v1/nodes/${nodeId}/device-metrics?time_from=${timeFrom}`);
     const data = await response.json();
-    return data.device_metrics || [];
+    // 反轉數據陣列以確保時間順序從舊到新
+    const metrics = data.device_metrics || [];
+    return metrics.reverse();
   } catch (error) {
     console.error('獲取設備指標失敗:', error);
     return [];
@@ -231,7 +233,8 @@ onUnmounted(() => {
 <style scoped>
 .map-container {
   width: 100%;
-  height: 100vh;
+  height: calc(100vh - 60px);
+  margin-top: 60px;
   position: relative;
 }
 
@@ -243,12 +246,32 @@ onUnmounted(() => {
 .status-bar {
   position: absolute;
   top: 10px;
-  right: 10px;
-  background: grey;
-  padding: 10px 15px;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  right: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   z-index: 1000;
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.status-bar > div > div {
+  margin: 2px 0;
+}
+
+/* 平板和桌面優化 */
+@media (min-width: 768px) {
+  .status-bar {
+    top: 20px;
+    right: 20px;
+    padding: 12px 16px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+
+  .status-bar > div > div {
+    margin: 4px 0;
+  }
 }
 </style>

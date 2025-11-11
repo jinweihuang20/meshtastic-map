@@ -95,7 +95,9 @@ const fetchDeviceMetrics = async (nodeId) => {
     const timeFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const response = await fetch(`/api/v1/nodes/${nodeId}/device-metrics?time_from=${timeFrom}`);
     const data = await response.json();
-    return data.device_metrics || [];
+    // 反轉數據陣列以確保時間順序從舊到新
+    const metrics = data.device_metrics || [];
+    return metrics.reverse();
   } catch (error) {
     console.error('獲取設備指標失敗:', error);
     return [];
@@ -156,21 +158,22 @@ defineExpose({
 
 <style scoped>
 .favorites-container {
-  padding: 80px 20px 20px;
-  max-width: 1400px;
-  margin: 0 auto;
-  min-height: 100vh;
+  padding: 0;
+  margin-top: 60px;
+  max-width: 100%;
+  min-height: calc(100vh - 60px);
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
 }
 
 .favorites-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
+  padding: 20px 16px 10px;
 }
 
 .favorites-header h2 {
-  margin: 0 0 10px 0;
-  font-size: 32px;
+  margin: 0 0 8px 0;
+  font-size: 24px;
   color: #2c3e50;
   font-weight: 700;
 }
@@ -178,49 +181,49 @@ defineExpose({
 .subtitle {
   margin: 0;
   color: #7f8c8d;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 /* Empty State */
 .empty-state {
   text-align: center;
-  padding: 80px 20px;
+  padding: 60px 16px;
   background: white;
-  border-radius: 16px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-  max-width: 500px;
-  margin: 0 auto;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
 }
 
 .empty-icon {
-  font-size: 80px;
-  margin-bottom: 20px;
+  font-size: 60px;
+  margin-bottom: 16px;
   opacity: 0.5;
 }
 
 .empty-state h3 {
-  margin: 0 0 10px 0;
-  font-size: 24px;
+  margin: 0 0 8px 0;
+  font-size: 20px;
   color: #2c3e50;
 }
 
 .empty-state p {
   margin: 0;
   color: #7f8c8d;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 /* Favorites List - 單排垂直佈局 */
 .favorites-list {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 0;
 }
 
 .favorite-item {
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+  border-radius: 0;
+  box-shadow: none;
+  border-bottom: 8px solid #e9ecef;
   overflow: hidden;
   transition: all 0.3s ease;
   display: flex;
@@ -228,36 +231,36 @@ defineExpose({
 }
 
 .favorite-item:hover {
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
 }
 
 /* 節點信息區 - 左側 */
 .node-info-section {
-  padding: 20px;
+  padding: 16px;
   background: white;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .node-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 2px solid #e9ecef;
 }
 
 .node-name {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 18px;
+  gap: 8px;
+  font-size: 16px;
   color: #2c3e50;
 }
 
 .node-icon {
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .remove-btn {
@@ -338,9 +341,9 @@ defineExpose({
 
 /* 圖表區 - 右側 */
 .chart-section {
-  padding: 20px;
+  padding: 16px;
   background: #f8f9fa;
-  min-height: 300px;
+  min-height: 250px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -351,30 +354,85 @@ defineExpose({
   align-items: center;
   justify-content: center;
   color: #7f8c8d;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 /* Tablet and Desktop Styles - 左右佈局 */
 @media (min-width: 768px) {
   .favorites-container {
-    padding: 90px 30px 30px;
+    padding: 20px 20px 20px;
+    margin-top: 60px;
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .favorites-header {
+    margin-bottom: 30px;
+    padding: 20px 0;
   }
 
   .favorites-header h2 {
-    font-size: 36px;
+    font-size: 32px;
+  }
+
+  .subtitle {
+    font-size: 16px;
+  }
+
+  .empty-state {
+    padding: 80px 20px;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  .empty-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+  }
+
+  .empty-state h3 {
+    font-size: 24px;
+  }
+
+  .empty-state p {
+    font-size: 16px;
+  }
+
+  .favorites-list {
+    gap: 20px;
   }
 
   .favorite-item {
     flex-direction: row;
+    border-radius: 12px;
+    border-bottom: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+  }
+
+  .favorite-item:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
   }
 
   .node-info-section {
     flex: 0 0 350px;
+    padding: 20px;
     border-right: 2px solid #e9ecef;
+  }
+
+  .node-name {
+    font-size: 18px;
+  }
+
+  .node-icon {
+    font-size: 24px;
   }
 
   .chart-section {
     flex: 1;
+    padding: 20px;
     min-height: 350px;
   }
 }
@@ -382,7 +440,15 @@ defineExpose({
 /* Large Desktop Styles */
 @media (min-width: 1024px) {
   .favorites-container {
-    padding: 100px 40px 40px;
+    padding: 30px 30px 30px;
+  }
+
+  .favorites-header h2 {
+    font-size: 36px;
+  }
+
+  .favorites-list {
+    gap: 24px;
   }
 
   .node-info-section {
@@ -392,14 +458,18 @@ defineExpose({
   .chart-section {
     min-height: 400px;
   }
-
-  .favorites-list {
-    gap: 28px;
-  }
 }
 
 /* Extra Large Desktop */
 @media (min-width: 1400px) {
+  .favorites-container {
+    padding: 40px 40px 40px;
+  }
+
+  .favorites-list {
+    gap: 28px;
+  }
+
   .node-info-section {
     flex: 0 0 450px;
   }
