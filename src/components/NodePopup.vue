@@ -11,6 +11,10 @@
       <small v-if="lastConnected"><br>最後連接: {{ lastConnected }}</small>
     </div>
 
+    <button class="favorite-btn" @click="toggleFavorite" :class="{ favorited: isFavorited }">
+      {{ isFavorited ? '⭐ 已收藏' : '☆ 加入最愛' }}
+    </button>
+
     <hr style="margin: 10px 0;">
 
     <div class="chart-section" :style="{ height: chartHeight }">
@@ -62,6 +66,7 @@ const props = defineProps({
 
 const loading = ref(true);
 const metrics = ref([]);
+const isFavorited = ref(false);
 
 const connectionStatus = computed(() => {
   return props.hasConnection
@@ -74,8 +79,61 @@ const lastConnected = computed(() => {
   return new Date(props.lastConnectedTime).toLocaleString('zh-TW');
 });
 
+// 檢查是否已收藏
+const checkFavorited = () => {
+  const stored = localStorage.getItem('meshtastic_favorites');
+  if (stored) {
+    try {
+      const favorites = JSON.parse(stored);
+      isFavorited.value = favorites.some(node => node.node_id === props.nodeId);
+    } catch (error) {
+      console.error('檢查收藏狀態失敗:', error);
+    }
+  }
+};
+
+// 切換收藏狀態
+const toggleFavorite = () => {
+  const stored = localStorage.getItem('meshtastic_favorites');
+  let favorites = [];
+
+  if (stored) {
+    try {
+      favorites = JSON.parse(stored);
+    } catch (error) {
+      console.error('讀取收藏失敗:', error);
+    }
+  }
+
+  if (isFavorited.value) {
+    // 移除收藏
+    favorites = favorites.filter(node => node.node_id !== props.nodeId);
+    isFavorited.value = false;
+  } else {
+    // 添加收藏
+    const nodeData = {
+      node_id: props.nodeId,
+      node_id_hex: props.nodeIdHex,
+      long_name: props.nodeName,
+      short_name: props.nodeName,
+      hardware_model_name: props.hardwareModelName,
+      hasConnection: props.hasConnection,
+      latitude: props.latitude,
+      longitude: props.longitude,
+      battery_level: props.batteryLevel,
+      altitude: props.altitude
+    };
+    favorites.push(nodeData);
+    isFavorited.value = true;
+  }
+
+  localStorage.setItem('meshtastic_favorites', JSON.stringify(favorites));
+};
+
 // 加載指標數據
 onMounted(async () => {
+  checkFavorited();
+
   try {
     loading.value = true;
     metrics.value = await props.fetchMetrics(props.nodeId);
@@ -94,6 +152,30 @@ onMounted(async () => {
 
 .node-info {
   line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.favorite-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 10px;
+}
+
+.favorite-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.favorite-btn.favorited {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 }
 
 .chart-section {
