@@ -494,6 +494,9 @@ onUnmounted(() => {
   border-bottom: 1px solid #e9ecef;
   cursor: pointer;
   transition: all 0.2s ease;
+  text-align:left;
+  display:flex;
+  gap:20px;
 }
 
 .result-item:hover {

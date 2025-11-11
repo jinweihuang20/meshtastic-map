@@ -18,7 +18,9 @@ const handleViewOnMap = (node) => {
 
     <div class="page-container">
       <router-view v-slot="{ Component }">
-        <component :is="Component" @view-on-map="handleViewOnMap" />
+        <keep-alive>
+          <component :is="Component" @view-on-map="handleViewOnMap" />
+        </keep-alive>
       </router-view>
     </div>
   </div>
