@@ -2,6 +2,23 @@
   <div class="map-container">
     <div id="map" ref="mapContainer"></div>
 
+    <!-- Node Drawer -->
+    <NodeDrawer
+      v-model:visible="drawerVisible"
+      :node-id="selectedNode.nodeId"
+      :node-id-hex="selectedNode.nodeIdHex"
+      :node-name="selectedNode.nodeName"
+      :hardware-model-name="selectedNode.hardwareModelName"
+      :has-connection="selectedNode.hasConnection"
+      :latitude="selectedNode.latitude"
+      :longitude="selectedNode.longitude"
+      :battery-level="selectedNode.batteryLevel"
+      :altitude="selectedNode.altitude"
+      :last-connected-time="selectedNode.lastConnectedTime"
+      :fetch-metrics="fetchDeviceMetrics"
+      @close="handleDrawerClose"
+    />
+
     <!-- 狀態欄 -->
     <div class="status-bar">
       <div v-if="loading">載入中...</div>
@@ -52,11 +69,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, createApp } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import NodePopup from './NodePopup.vue';
-import DeviceMetricsChart from './DeviceMetricsChart.vue';
+import NodeDrawer from './NodeDrawer.vue';
 
 const mapContainer = ref(null);
 const map = ref(null);
@@ -65,6 +81,21 @@ const loading = ref(true);
 const markers = ref([]);
 const connectedCount = ref(0);
 const disconnectedCount = ref(0);
+
+// Drawer 相關
+const drawerVisible = ref(false);
+const selectedNode = ref({
+  nodeId: null,
+  nodeIdHex: '',
+  nodeName: '',
+  hardwareModelName: '',
+  hasConnection: false,
+  latitude: 0,
+  longitude: 0,
+  batteryLevel: null,
+  altitude: null,
+  lastConnectedTime: null
+});
 
 // 搜尋相關
 const searchQuery = ref('');
@@ -138,6 +169,34 @@ const handleSearch = () => {
   console.log(`搜尋 "${query}" 找到 ${filteredNodes.value.length} 個節點`);
 };
 
+// 打開節點 drawer
+const openNodeDrawer = (node) => {
+  const lat = node.latitude / 10000000;
+  const lng = node.longitude / 10000000;
+
+  selectedNode.value = {
+    nodeId: node.node_id,
+    nodeIdHex: node.node_id_hex,
+    nodeName: node.long_name || node.short_name || '未知節點',
+    hardwareModelName: node.hardware_model_name,
+    hasConnection: node.mqtt_connection_state_updated_at !== null &&
+                   node.mqtt_connection_state_updated_at !== undefined &&
+                   node.mqtt_connection_state_updated_at !== '',
+    latitude: lat,
+    longitude: lng,
+    batteryLevel: node.battery_level,
+    altitude: node.altitude,
+    lastConnectedTime: node.mqtt_connection_state_updated_at
+  };
+
+  drawerVisible.value = true;
+};
+
+// 關閉 drawer
+const handleDrawerClose = () => {
+  drawerVisible.value = false;
+};
+
 // 選擇節點處理（從列表點擊）
 const selectNode = (nodeId) => {
   if (!nodeId || !map.value) return;
@@ -158,11 +217,8 @@ const selectNode = (nodeId) => {
   // 定位到節點
   map.value.setView([lat, lng], 15);
 
-  // 從 nodeMarkerMap 找到對應的 marker 並打開彈出窗口
-  const marker = nodeMarkerMap.value.get(nodeId);
-  if (marker) {
-    marker.openPopup();
-  }
+  // 打開 drawer 顯示節點信息
+  openNodeDrawer(node);
 
   // 清空搜尋
   searchQuery.value = '';
@@ -240,49 +296,11 @@ const renderNodes = () => {
         fillOpacity: 0.7
       });
 
-      // 創建彈出窗口容器
-      const popupDiv = document.createElement('div');
-      popupDiv.id = `popup-${node.node_id}`;
-
-      // 綁定彈出窗口
-      const popup = L.popup({
-        maxWidth: 450,
-        minWidth: 400
-      }).setContent(popupDiv);
-
-      marker.bindPopup(popup);
-
-      // 監聽彈出窗口打開事件，動態掛載 Vue 組件
-      marker.on('popupopen', () => {
-        // 創建 Vue 應用實例並掛載 NodePopup 組件
-        const popupApp = createApp(NodePopup, {
-          nodeId: node.node_id,
-          nodeIdHex: node.node_id_hex,
-          nodeName: node.long_name || node.short_name || '未知節點',
-          hardwareModelName: node.hardware_model_name,
-          hasConnection: hasConnection,
-          latitude: node.latitude,
-          longitude: node.longitude,
-          batteryLevel: node.battery_level,
-          altitude: node.altitude,
-          lastConnectedTime: node.mqtt_connection_state_updated_at,
-          fetchMetrics: fetchDeviceMetrics
-        });
-
-        // 掛載組件
-        popupApp.mount(popupDiv);
-
-        // 保存實例以便後續清理
-        marker._popupApp = popupApp;
+      // 點擊標記時打開 drawer
+      marker.on('click', () => {
+        openNodeDrawer(node);
       });
 
-      // 監聽彈出窗口關閉事件，卸載 Vue 組件
-      marker.on('popupclose', () => {
-        if (marker._popupApp) {
-          marker._popupApp.unmount();
-          marker._popupApp = null;
-        }
-      });
       marker.addTo(map.value);
       markers.value.push(marker);
 
