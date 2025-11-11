@@ -5,6 +5,7 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   server: {
+    allowedHosts: ['meshmap.gwtech.org', 'localhost'],
     proxy: {
       '/api': {
         target: 'https://meshtastic.liamcottle.net',
