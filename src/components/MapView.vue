@@ -1,12 +1,51 @@
 <template>
   <div class="map-container">
     <div id="map" ref="mapContainer"></div>
+
+    <!-- 狀態欄 -->
     <div class="status-bar">
       <div v-if="loading">載入中...</div>
       <div v-else>
         <div><strong>總節點數:</strong> {{ nodes.length }}</div>
         <div style="color: #00FF00;"><strong>● MQTT:</strong> {{ connectedCount }}</div>
         <div style="color: #3388FF;"><strong>○ 未連接:</strong> {{ disconnectedCount }}</div>
+      </div>
+    </div>
+
+    <!-- 搜尋欄 -->
+    <div class="search-bar">
+      <!-- 搜尋結果列表 -->
+      <div v-if="searchQuery && filteredNodes.length > 0" class="search-results">
+        <div class="results-header">
+          找到 {{ filteredNodes.length }} 個節點
+        </div>
+        <div class="results-list">
+          <div
+            v-for="node in filteredNodes"
+            :key="node.node_id"
+            class="result-item"
+            @click="selectNode(node.node_id)"
+          >
+            <div class="result-name">{{ node.long_name || node.short_name || '未知節點' }}</div>
+            <div class="result-id">{{ node.node_id_hex || node.node_id }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 無結果提示 -->
+      <div v-if="searchQuery && filteredNodes.length === 0" class="search-results no-results">
+        <div class="no-results-message">未找到符合的節點</div>
+      </div>
+
+      <!-- 搜尋輸入框 -->
+      <div class="search-container">
+        <input
+          type="text"
+          v-model="searchQuery"
+          @input="handleSearch"
+          placeholder="搜尋節點 (ID / 名稱)..."
+          class="search-input"
+        />
       </div>
     </div>
   </div>
@@ -26,6 +65,12 @@ const loading = ref(true);
 const markers = ref([]);
 const connectedCount = ref(0);
 const disconnectedCount = ref(0);
+
+// 搜尋相關
+const searchQuery = ref('');
+const filteredNodes = ref([]);
+const selectedNodeId = ref('');
+const nodeMarkerMap = ref(new Map()); // 存儲 node_id 到 marker 的映射
 
 // 從 API 獲取節點數據
 const fetchNodes = async () => {
@@ -58,6 +103,72 @@ const fetchDeviceMetrics = async (nodeId) => {
     console.error('獲取設備指標失敗:', error);
     return [];
   }
+};
+
+// 搜尋處理
+const handleSearch = () => {
+  const query = searchQuery.value.toLowerCase().trim();
+
+  if (!query) {
+    filteredNodes.value = [];
+    selectedNodeId.value = '';
+    return;
+  }
+
+  // 過濾節點：比對 id, node_id, short_name, long_name
+  filteredNodes.value = nodes.value.filter(node => {
+    const id = String(node.id || '').toLowerCase();
+    const nodeId = String(node.node_id || '').toLowerCase();
+    const nodeIdHex = String(node.node_id_hex || '').toLowerCase();
+    const shortName = String(node.short_name || '').toLowerCase();
+    const longName = String(node.long_name || '').toLowerCase();
+
+    return id.includes(query) ||
+           nodeId.includes(query) ||
+           nodeIdHex.includes(query) ||
+           shortName.includes(query) ||
+           longName.includes(query);
+  });
+
+  // 限制最多顯示 50 個結果
+  if (filteredNodes.value.length > 50) {
+    filteredNodes.value = filteredNodes.value.slice(0, 50);
+  }
+
+  console.log(`搜尋 "${query}" 找到 ${filteredNodes.value.length} 個節點`);
+};
+
+// 選擇節點處理（從列表點擊）
+const selectNode = (nodeId) => {
+  if (!nodeId || !map.value) return;
+
+  const node = nodes.value.find(n => n.node_id === nodeId);
+  if (!node) return;
+
+  // 轉換經緯度
+  const lat = node.latitude / 10000000;
+  const lng = node.longitude / 10000000;
+
+  // 檢查座標是否有效
+  if (lat === 0 || lng === 0 || !lat || !lng) {
+    alert('此節點沒有有效的位置信息');
+    return;
+  }
+
+  // 定位到節點
+  map.value.setView([lat, lng], 15);
+
+  // 從 nodeMarkerMap 找到對應的 marker 並打開彈出窗口
+  const marker = nodeMarkerMap.value.get(nodeId);
+  if (marker) {
+    marker.openPopup();
+  }
+
+  // 清空搜尋
+  searchQuery.value = '';
+  filteredNodes.value = [];
+
+  console.log(`定位到節點: ${node.long_name || node.short_name}`, lat, lng);
 };
 
 
@@ -175,6 +286,9 @@ const renderNodes = () => {
       marker.addTo(map.value);
       markers.value.push(marker);
 
+      // 保存 node_id 到 marker 的映射，用於搜尋定位
+      nodeMarkerMap.value.set(node.node_id, marker);
+
       if (index === 0) {
         console.log('成功添加第一個標記:', node.latitude, node.longitude);
         console.log('標記對象:', marker);
@@ -241,6 +355,13 @@ onUnmounted(() => {
 #map {
   width: 100%;
   height: 100%;
+  padding-bottom: 120px; /* 為搜尋欄留出空間 */
+}
+
+@media (min-width: 768px) {
+  #map {
+    padding-bottom: 80px; /* 桌面版搜尋欄較矮 */
+  }
 }
 
 .status-bar {
@@ -272,6 +393,176 @@ onUnmounted(() => {
 
   .status-bar > div > div {
     margin: 4px 0;
+  }
+}
+
+/* 搜尋欄 */
+.search-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.98);
+  padding: 12px 8px;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  border-top: 2px solid #667eea;
+}
+
+.search-container {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 15px;
+  outline: none;
+  transition: all 0.3s ease;
+  background: white;
+  color: #000000;
+}
+
+.search-input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.search-input::placeholder {
+  color: #999;
+}
+
+/* 搜尋結果列表 */
+.search-results {
+  position: absolute;
+  bottom: 100%;
+  left: 8px;
+  right: 8px;
+  margin-bottom: 8px;
+  background: white;
+  border: 2px solid #667eea;
+  border-radius: 8px;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 300px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.search-results.no-results {
+  max-height: auto;
+  padding: 20px;
+}
+
+.results-header {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.results-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.result-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e9ecef;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.result-item:hover {
+  background: #f8f9fa;
+}
+
+.result-item:active {
+  background: #e9ecef;
+}
+
+.result-item:last-child {
+  border-bottom: none;
+}
+
+.result-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #000000;
+  margin-bottom: 4px;
+}
+
+.result-id {
+  font-size: 12px;
+  color: #666666;
+}
+
+.no-results-message {
+  text-align: center;
+  color: #666666;
+  font-size: 14px;
+}
+
+/* 平板和桌面優化 */
+@media (min-width: 768px) {
+  .search-bar {
+    padding: 16px 20px;
+  }
+
+  .search-container {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .search-input {
+    font-size: 16px;
+    padding: 14px 18px;
+  }
+
+  .search-results {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 800px;
+    max-width: calc(100vw - 40px);
+    max-height: 400px;
+  }
+
+  .results-header {
+    padding: 12px 18px;
+    font-size: 14px;
+  }
+
+  .result-item {
+    padding: 14px 18px;
+  }
+
+  .result-name {
+    font-size: 15px;
+  }
+
+  .result-id {
+    font-size: 13px;
+  }
+}
+
+/* 大螢幕優化 */
+@media (min-width: 1024px) {
+  .search-container {
+    max-width: 1000px;
+  }
+
+  .search-results {
+    width: 1000px;
+  }
+
+  .search-input {
+    font-size: 17px;
   }
 }
 </style>
