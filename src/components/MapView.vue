@@ -41,10 +41,19 @@
             v-for="node in filteredNodes"
             :key="node.node_id"
             class="result-item"
-            @click="selectNode(node.node_id)"
           >
-            <div class="result-name">{{ node.long_name || node.short_name || '未知節點' }}</div>
-            <div class="result-id">{{ node.node_id_hex || node.node_id }}</div>
+            <div class="result-info" @click="selectNode(node.node_id)">
+              <div class="result-name">{{ node.long_name || node.short_name || '未知節點' }}</div>
+              <div class="result-id">{{ node.node_id_hex || node.node_id }}</div>
+            </div>
+            <button
+              class="favorite-toggle-btn"
+              :class="{ favorited: isNodeFavorited(node.node_id) }"
+              @click.stop="toggleFavoriteFromSearch(node)"
+              :title="isNodeFavorited(node.node_id) ? '取消收藏' : '加入最愛'"
+            >
+              {{ isNodeFavorited(node.node_id) ? '⭐' : '☆' }}
+            </button>
           </div>
         </div>
       </div>
@@ -102,6 +111,9 @@ const searchQuery = ref('');
 const filteredNodes = ref([]);
 const selectedNodeId = ref('');
 const nodeMarkerMap = ref(new Map()); // 存儲 node_id 到 marker 的映射
+
+// 收藏相關
+const favorites = ref([]);
 
 // 從 API 獲取節點數據
 const fetchNodes = async () => {
@@ -195,6 +207,57 @@ const openNodeDrawer = (node) => {
 // 關閉 drawer
 const handleDrawerClose = () => {
   drawerVisible.value = false;
+};
+
+// 載入收藏列表
+const loadFavorites = () => {
+  const stored = localStorage.getItem('meshtastic_favorites');
+  if (stored) {
+    try {
+      favorites.value = JSON.parse(stored);
+    } catch (error) {
+      console.error('讀取收藏失敗:', error);
+      favorites.value = [];
+    }
+  }
+};
+
+// 檢查節點是否已收藏
+const isNodeFavorited = (nodeId) => {
+  return favorites.value.some(node => node.node_id === nodeId);
+};
+
+// 從搜尋結果切換收藏狀態
+const toggleFavoriteFromSearch = (node) => {
+  const nodeId = node.node_id;
+
+  if (isNodeFavorited(nodeId)) {
+    // 移除收藏
+    favorites.value = favorites.value.filter(n => n.node_id !== nodeId);
+  } else {
+    // 添加收藏
+    const lat = node.latitude / 10000000;
+    const lng = node.longitude / 10000000;
+
+    const nodeData = {
+      node_id: node.node_id,
+      node_id_hex: node.node_id_hex,
+      long_name: node.long_name,
+      short_name: node.short_name,
+      hardware_model_name: node.hardware_model_name,
+      hasConnection: node.mqtt_connection_state_updated_at !== null &&
+                     node.mqtt_connection_state_updated_at !== undefined &&
+                     node.mqtt_connection_state_updated_at !== '',
+      latitude: lat,
+      longitude: lng,
+      battery_level: node.battery_level,
+      altitude: node.altitude
+    };
+    favorites.value.push(nodeData);
+  }
+
+  // 保存到 localStorage
+  localStorage.setItem('meshtastic_favorites', JSON.stringify(favorites.value));
 };
 
 // 選擇節點處理（從列表點擊）
@@ -350,6 +413,9 @@ onMounted(async () => {
 
   console.log('地圖已初始化');
 
+  // 載入收藏列表
+  loadFavorites();
+
   // 獲取並渲染節點
   await fetchNodes();
 });
@@ -492,23 +558,30 @@ onUnmounted(() => {
 .result-item {
   padding: 12px 16px;
   border-bottom: 1px solid #e9ecef;
-  cursor: pointer;
   transition: all 0.2s ease;
-  text-align:left;
-  display:flex;
-  gap:20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .result-item:hover {
   background: #f8f9fa;
 }
 
-.result-item:active {
-  background: #e9ecef;
-}
-
 .result-item:last-child {
   border-bottom: none;
+}
+
+.result-info {
+  flex: 1;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+
+.result-info:active {
+  opacity: 0.7;
 }
 
 .result-name {
@@ -516,11 +589,50 @@ onUnmounted(() => {
   font-weight: 600;
   color: #000000;
   margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .result-id {
   font-size: 12px;
   color: #666666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 收藏按鈕 */
+.favorite-toggle-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  background: white;
+  /* border: 2px solid #e0e0e0; */
+  /* border-radius: 50%; */
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  color: #999;
+}
+
+.favorite-toggle-btn:hover {
+  border-color: #667eea;
+  background: #f8f9fa;
+  transform: scale(1.1);
+}
+
+.favorite-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.favorite-toggle-btn.favorited {
+  border-color: #f5576c;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
 }
 
 .no-results-message {
