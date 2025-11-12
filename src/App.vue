@@ -52,10 +52,4 @@ html, body {
   width: 100%;
   min-height: 100vh;
 }
-
-/* 確保地圖視圖保持全屏 */
-.page-container > * {
-  width: 100%;
-  min-height: 100vh;
-}
 </style>

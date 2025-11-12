@@ -431,9 +431,13 @@ onUnmounted(() => {
 <style scoped>
 .map-container {
   width: 100%;
-  height: calc(100vh - 60px);
-  margin-top: 60px;
-  position: relative;
+  height: 100vh;
+  position: fixed;
+  top: 70px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
 }
 
 #map {
@@ -449,14 +453,15 @@ onUnmounted(() => {
 }
 
 .status-bar {
-  position: absolute;
-  top: 10px;
+  position: fixed;
+  top: calc(var(--navbar-height, 60px) + 10px);
   right: 8px;
   background: rgba(255, 255, 255, 0.95);
+  color:black;
   padding: 8px 12px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  z-index: 1000;
+  z-index: 1500;
   font-size: 12px;
   line-height: 1.4;
 }
@@ -468,7 +473,7 @@ onUnmounted(() => {
 /* 平板和桌面優化 */
 @media (min-width: 768px) {
   .status-bar {
-    top: 20px;
+    top: calc(var(--navbar-height, 60px) + 20px);
     right: 20px;
     padding: 12px 16px;
     font-size: 14px;
@@ -489,7 +494,7 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.98);
   padding: 12px 8px;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
+  z-index: 1500;
   border-top: 2px solid #667eea;
 }
 

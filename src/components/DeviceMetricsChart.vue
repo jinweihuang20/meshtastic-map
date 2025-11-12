@@ -109,7 +109,7 @@ const createChart = () => {
       backgroundColor: 'rgba(76, 175, 80, 0.1)',
       yAxisID: 'y',
       tension: 0.3,
-      pointRadius: 3,
+      pointRadius: 0,
       pointHoverRadius: 5
     });
   }
@@ -124,7 +124,7 @@ const createChart = () => {
       backgroundColor: 'rgba(33, 150, 243, 0.1)',
       yAxisID: 'y1',
       tension: 0.3,
-      pointRadius: 3,
+      pointRadius: 0,
       pointHoverRadius: 5
     });
   }
@@ -139,7 +139,7 @@ const createChart = () => {
       backgroundColor: 'rgba(255, 152, 0, 0.1)',
       yAxisID: 'y1',
       tension: 0.3,
-      pointRadius: 3,
+      pointRadius: 0,
       pointHoverRadius: 5
     });
   }
@@ -200,12 +200,12 @@ const createChart = () => {
           position: 'left',
           title: {
             display: props.showBattery,
-            text: '電池 (%)',
+            text: '電量 (%)',
             font: { size: 10 },
             color: '#4CAF50'
           },
           min: 0,
-          max: 100,
+          max: 110,
           ticks: {
             font: { size: 9 }
           }
@@ -262,7 +262,7 @@ const createFullscreenChart = () => {
       backgroundColor: 'rgba(76, 175, 80, 0.1)',
       yAxisID: 'y',
       tension: 0.3,
-      pointRadius: 4,
+      pointRadius: 0,
       pointHoverRadius: 6
     });
   }
@@ -276,7 +276,7 @@ const createFullscreenChart = () => {
       backgroundColor: 'rgba(33, 150, 243, 0.1)',
       yAxisID: 'y1',
       tension: 0.3,
-      pointRadius: 4,
+      pointRadius: 0,
       pointHoverRadius: 6
     });
   }
@@ -290,7 +290,7 @@ const createFullscreenChart = () => {
       backgroundColor: 'rgba(255, 152, 0, 0.1)',
       yAxisID: 'y1',
       tension: 0.3,
-      pointRadius: 4,
+      pointRadius: 0,
       pointHoverRadius: 6
     });
   }

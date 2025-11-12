@@ -83,8 +83,7 @@ const closeMobileMenu = () => {
   right: 0;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  height: 60px;
+  height: var(--navbar-height, 60px);
 }
 
 .nav-container {
@@ -212,11 +211,11 @@ const closeMobileMenu = () => {
 /* Mobile Menu */
 .mobile-menu {
   position: fixed;
-  top: 60px;
+  top: var(--navbar-height, 60px);
   right: 0;
   width: 250px;
   max-width: 80%;
-  height: calc(100vh - 60px);
+  height: calc(100vh - var(--navbar-height, 60px));
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
   flex-direction: column;
   gap: 0;
@@ -286,10 +285,6 @@ const closeMobileMenu = () => {
 
 /* Large Desktop Styles */
 @media (min-width: 1400px) {
-  .navbar {
-    height: 70px;
-  }
-
   .nav-brand h1 {
     font-size: 26px;
   }

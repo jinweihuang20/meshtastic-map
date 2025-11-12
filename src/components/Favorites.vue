@@ -1,10 +1,5 @@
 <template>
   <div class="favorites-container">
-    <div class="favorites-header">
-      <h2>我的最愛節點</h2>
-      <p class="subtitle">收藏的 Meshtastic 節點列表</p>
-    </div>
-
     <div v-if="favoriteNodes.length === 0" class="empty-state">
       <div class="empty-icon">⭐</div>
       <h3>尚未收藏任何節點</h3>
@@ -25,7 +20,7 @@
               <strong>{{ node.long_name || node.short_name || '未知節點' }}</strong>
             </div>
             <button class="remove-btn" @click="removeFavorite(node.node_id)" title="移除">
-              ✕
+              移除收藏
             </button>
           </div>
 
@@ -159,9 +154,9 @@ defineExpose({
 <style scoped>
 .favorites-container {
   padding: 0;
-  margin-top: 60px;
+  padding-top: 1465px;
   max-width: 100%;
-  min-height: calc(100vh - 60px);
+  min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
 }
 
@@ -236,46 +231,47 @@ defineExpose({
 
 /* 節點信息區 - 左側 */
 .node-info-section {
-  padding: 16px;
+  padding: 12px;
   background: white;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .node-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 10px;
-  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e9ecef;
 }
 
 .node-name {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 16px;
+  gap: 6px;
+  font-size: 14px;
   color: #2c3e50;
 }
 
 .node-icon {
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .remove-btn {
   background: rgba(231, 76, 60, 0.1);
   border: none;
   color: #e74c3c;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .remove-btn:hover {
@@ -284,37 +280,38 @@ defineExpose({
 }
 
 .node-details {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
 }
 
 .info-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .label {
-  font-size: 14px;
+  font-size: 10px;
   color: #7f8c8d;
   font-weight: 500;
 }
 
 .value {
-  font-size: 14px;
+  font-size: 12px;
   color: #2c3e50;
   font-weight: 600;
+  word-break: break-all;
 }
 
 .status-badge {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
   font-weight: 600;
   background: #3498db;
   color: white;
+  display: inline-block;
 }
 
 .status-badge.connected {
@@ -323,12 +320,12 @@ defineExpose({
 
 .action-btn {
   width: 100%;
-  padding: 10px 16px;
+  padding: 8px 12px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: 6px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -341,9 +338,9 @@ defineExpose({
 
 /* 圖表區 - 右側 */
 .chart-section {
-  padding: 16px;
+  padding: 12px;
   background: #f8f9fa;
-  min-height: 250px;
+  min-height: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -354,17 +351,14 @@ defineExpose({
   align-items: center;
   justify-content: center;
   color: #7f8c8d;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 /* Tablet and Desktop Styles - 左右佈局 */
 @media (min-width: 768px) {
   .favorites-container {
     padding: 20px 20px 20px;
-    margin-top: 60px;
-    max-width: 1400px;
-    margin-left: auto;
-    margin-right: auto;
+    padding-top: calc(var(--navbar-height, 60px) + 720px);
   }
 
   .favorites-header {
@@ -440,7 +434,7 @@ defineExpose({
 /* Large Desktop Styles */
 @media (min-width: 1024px) {
   .favorites-container {
-    padding: 30px 30px 30px;
+    padding: 820px 30px 30px;
   }
 
   .favorites-header h2 {
@@ -463,7 +457,7 @@ defineExpose({
 /* Extra Large Desktop */
 @media (min-width: 1400px) {
   .favorites-container {
-    padding: 40px 40px 40px;
+    padding: 820px 40px 40px;
   }
 
   .favorites-list {

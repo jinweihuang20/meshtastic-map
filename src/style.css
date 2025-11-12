@@ -11,6 +11,16 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* 導航欄高度變數 */
+  --navbar-height: 60px;
+}
+
+/* 大螢幕導航欄高度 */
+@media (min-width: 1400px) {
+  :root {
+    --navbar-height: 70px;
+  }
 }
 
 a {
