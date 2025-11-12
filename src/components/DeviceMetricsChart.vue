@@ -80,24 +80,20 @@ const dialogWidth = computed(() => {
 let resizeObserver = null;
 let windowResizeHandler = null;
 
-// 創建圖表
-const createChart = () => {
-  if (!chartCanvas.value || !props.metrics || props.metrics.length === 0) {
-    return;
-  }
-
-  // 銷毀舊圖表
-  if (chartInstance.value) {
-    chartInstance.value.destroy();
-  }
-
-  // 準備數據
-  const labels = props.metrics.map(m => new Date(m.created_at).toLocaleDateString('zh-TW', {
+// 準備標籤數據
+const prepareLabels = () => {
+  return props.metrics.map(m => new Date(m.created_at).toLocaleDateString('zh-TW', {
     month: 'short',
     day: 'numeric'
   }));
+};
 
+// 創建數據集
+const createDatasets = (isFullscreen = false) => {
   const datasets = [];
+  const pointRadius = 2;
+  const pointHoverRadius = 4;
+  const batteryHoverRadius = isFullscreen ? 6 : 5;
 
   // 電池電量數據集
   if (props.showBattery) {
@@ -105,12 +101,12 @@ const createChart = () => {
     datasets.push({
       label: '電池電量 (%)',
       data: batteryData,
-      borderColor: '#4CAF50',
+      borderColor: 'rgb(59, 130, 246)',
       backgroundColor: 'rgba(76, 175, 80, 0.1)',
       yAxisID: 'y',
-      tension: 0.3,
-      pointRadius: 0,
-      pointHoverRadius: 5
+      tension: 0, // 非圓滑模式
+      pointRadius: 0, // 不顯示點
+      pointHoverRadius: batteryHoverRadius
     });
   }
 
@@ -120,12 +116,15 @@ const createChart = () => {
     datasets.push({
       label: '頻道使用率 (%)',
       data: channelUtilData,
-      borderColor: '#2196F3',
+      borderColor: 'rgb(0, 208, 76)',
       backgroundColor: 'rgba(33, 150, 243, 0.1)',
       yAxisID: 'y1',
-      tension: 0.3,
-      pointRadius: 0,
-      pointHoverRadius: 5
+      tension: 0,
+      borderWidth: 0, // 不顯示線
+      pointRadius: pointRadius,
+      pointHoverRadius: pointHoverRadius,
+      pointBackgroundColor: 'rgb(0, 208, 76)',
+      pointBorderWidth: 0 // 無外框
     });
   }
 
@@ -135,113 +134,166 @@ const createChart = () => {
     datasets.push({
       label: '空中傳輸率 (%)',
       data: airUtilData,
-      borderColor: '#FF9800',
-      backgroundColor: 'rgba(255, 152, 0, 0.1)',
+      borderColor: 'rgb(244, 102, 0)',
+      backgroundColor: 'transparent', // 不顯示填充
       yAxisID: 'y1',
-      tension: 0.3,
-      pointRadius: 0,
-      pointHoverRadius: 5
+      tension: 0,
+      borderWidth: 0, // 不顯示線
+      pointRadius: pointRadius,
+      pointHoverRadius: pointHoverRadius,
+      pointBackgroundColor: 'rgb(244, 102, 0)', // 點顏色與邊框顏色一致
+      pointBorderWidth: 0 // 無外框
     });
   }
 
-  // 創建圖表
-  chartInstance.value = new Chart(chartCanvas.value, {
+  return datasets;
+};
+
+// 創建圖表配置選項
+const createChartOptions = (isFullscreen = false) => {
+  const fontSize = {
+    legend: isFullscreen ? 14 : 10,
+    title: isFullscreen ? 18 : 14,
+    tooltipTitle: isFullscreen ? 14 : 12,
+    tooltipBody: isFullscreen ? 13 : 11,
+    xAxis: isFullscreen ? 12 : 9,
+    yAxis: isFullscreen ? 13 : 10,
+    yAxisTicks: isFullscreen ? 12 : 9
+  };
+
+  const padding = {
+    legend: isFullscreen ? 15 : 10,
+    title: isFullscreen ? { top: 10, bottom: 15 } : { top: 5, bottom: 10 },
+    tooltip: isFullscreen ? 12 : 10
+  };
+
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: {
+          font: { size: fontSize.legend },
+          usePointStyle: true,
+          padding: padding.legend
+        }
+      },
+      title: {
+        display: true,
+        text: '設備指標趨勢',
+        font: { size: fontSize.title, weight: 'bold' },
+        padding: padding.title
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleFont: { size: fontSize.tooltipTitle },
+        bodyFont: { size: fontSize.tooltipBody },
+        padding: padding.tooltip,
+        displayColors: true
+      }
+    },
+    scales: {
+      x: {
+        display: true,
+        ticks: {
+          maxRotation: 45,
+          minRotation: 45,
+          font: { size: fontSize.xAxis },
+          maxTicksLimit: isFullscreen ? 15 : 10
+        },
+        grid: {
+          display: isFullscreen,
+          color: isFullscreen ? 'rgba(0, 0, 0, 0.05)' : undefined
+        }
+      },
+      y: {
+        type: 'linear',
+        display: props.showBattery,
+        position: 'left',
+        title: {
+          display: props.showBattery,
+          text: isFullscreen ? '電池 (%)' : '電量 (%)',
+          font: { size: fontSize.yAxis },
+          color: '#4CAF50'
+        },
+        min: 0,
+        max: isFullscreen ? 100 : 110,
+        ticks: {
+          font: { size: fontSize.yAxisTicks }
+        }
+      },
+      y1: {
+        type: 'linear',
+        display: props.showChannelUtilization || props.showAirUtilTx,
+        position: 'right',
+        title: {
+          display: props.showChannelUtilization || props.showAirUtilTx,
+          text: '使用率 (%)',
+          font: { size: fontSize.yAxis },
+          color: '#2196F3'
+        },
+        min: 0,
+        max: 100,
+        ticks: {
+          font: { size: fontSize.yAxisTicks }
+        },
+        grid: {
+          drawOnChartArea: false,
+        }
+      }
+    }
+  };
+};
+
+// 創建圖表實例
+const createChartInstance = (canvas, isFullscreen = false) => {
+  if (!canvas || !props.metrics || props.metrics.length === 0) {
+    return null;
+  }
+
+  const labels = prepareLabels();
+  const datasets = createDatasets(isFullscreen);
+  const options = createChartOptions(isFullscreen);
+
+  return new Chart(canvas, {
     type: 'line',
     data: {
       labels: labels,
       datasets: datasets
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false,
-      },
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: {
-            font: { size: 10 },
-            usePointStyle: true,
-            padding: 10
-          }
-        },
-        title: {
-          display: true,
-          text: '設備指標趨勢',
-          font: { size: 14, weight: 'bold' },
-          padding: { top: 5, bottom: 10 }
-        },
-        tooltip: {
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          titleFont: { size: 12 },
-          bodyFont: { size: 11 },
-          padding: 10,
-          displayColors: true
-        }
-      },
-      scales: {
-        x: {
-          display: true,
-          ticks: {
-            maxRotation: 45,
-            minRotation: 45,
-            font: { size: 9 },
-            maxTicksLimit: 10
-          },
-          grid: {
-            display: false
-          }
-        },
-        y: {
-          type: 'linear',
-          display: props.showBattery,
-          position: 'left',
-          title: {
-            display: props.showBattery,
-            text: '電量 (%)',
-            font: { size: 10 },
-            color: '#4CAF50'
-          },
-          min: 0,
-          max: 110,
-          ticks: {
-            font: { size: 9 }
-          }
-        },
-        y1: {
-          type: 'linear',
-          display: props.showChannelUtilization || props.showAirUtilTx,
-          position: 'right',
-          title: {
-            display: props.showChannelUtilization || props.showAirUtilTx,
-            text: '使用率 (%)',
-            font: { size: 10 },
-            color: '#2196F3'
-          },
-          min: 0,
-          max: 100,
-          ticks: {
-            font: { size: 9 }
-          },
-          grid: {
-            drawOnChartArea: false,
-          }
-        }
-      }
-    }
+    options: options
   });
+};
+
+// 創建圖表
+const createChart = () => {
+  if (!chartCanvas.value) {
+    return;
+  }
+
+  // 銷毀舊圖表
+  if (chartInstance.value) {
+    chartInstance.value.destroy();
+  }
+
+  chartInstance.value = createChartInstance(chartCanvas.value, false);
 
   // 確保圖表正確調整大小
-  nextTick(() => {
-    resizeChart();
-  });
+  if (chartInstance.value) {
+    nextTick(() => {
+      resizeChart();
+    });
+  }
 };
 
 // 創建全屏圖表
 const createFullscreenChart = () => {
-  if (!fullscreenCanvas.value || !props.metrics || props.metrics.length === 0) {
+  if (!fullscreenCanvas.value) {
     return;
   }
 
@@ -250,150 +302,14 @@ const createFullscreenChart = () => {
     fullscreenChartInstance.value.destroy();
   }
 
-  // 準備數據（與 createChart 相同）
-  const labels = props.metrics.map(m => new Date(m.created_at).toLocaleDateString('zh-TW', {
-    month: 'short',
-    day: 'numeric'
-  }));
-
-  const datasets = [];
-
-  if (props.showBattery) {
-    const batteryData = props.metrics.map(m => m.battery_level || 0);
-    datasets.push({
-      label: '電池電量 (%)',
-      data: batteryData,
-      borderColor: '#4CAF50',
-      backgroundColor: 'rgba(76, 175, 80, 0.1)',
-      yAxisID: 'y',
-      tension: 0.3,
-      pointRadius: 0,
-      pointHoverRadius: 6
-    });
-  }
-
-  if (props.showChannelUtilization) {
-    const channelUtilData = props.metrics.map(m => parseFloat(m.channel_utilization) || 0);
-    datasets.push({
-      label: '頻道使用率 (%)',
-      data: channelUtilData,
-      borderColor: '#2196F3',
-      backgroundColor: 'rgba(33, 150, 243, 0.1)',
-      yAxisID: 'y1',
-      tension: 0.3,
-      pointRadius: 0,
-      pointHoverRadius: 6
-    });
-  }
-
-  if (props.showAirUtilTx) {
-    const airUtilData = props.metrics.map(m => parseFloat(m.air_util_tx) || 0);
-    datasets.push({
-      label: '空中傳輸率 (%)',
-      data: airUtilData,
-      borderColor: '#FF9800',
-      backgroundColor: 'rgba(255, 152, 0, 0.1)',
-      yAxisID: 'y1',
-      tension: 0.3,
-      pointRadius: 0,
-      pointHoverRadius: 6
-    });
-  }
-
-  // 創建全屏圖表（字體更大）
-  fullscreenChartInstance.value = new Chart(fullscreenCanvas.value, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: datasets
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false,
-      },
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: {
-            font: { size: 14 },
-            usePointStyle: true,
-            padding: 15
-          }
-        },
-        title: {
-          display: true,
-          text: '設備指標趨勢',
-          font: { size: 18, weight: 'bold' },
-          padding: { top: 10, bottom: 15 }
-        },
-        tooltip: {
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          titleFont: { size: 14 },
-          bodyFont: { size: 13 },
-          padding: 12,
-          displayColors: true
-        }
-      },
-      scales: {
-        x: {
-          display: true,
-          ticks: {
-            maxRotation: 45,
-            minRotation: 45,
-            font: { size: 12 },
-            maxTicksLimit: 15
-          },
-          grid: {
-            display: true,
-            color: 'rgba(0, 0, 0, 0.05)'
-          }
-        },
-        y: {
-          type: 'linear',
-          display: props.showBattery,
-          position: 'left',
-          title: {
-            display: props.showBattery,
-            text: '電池 (%)',
-            font: { size: 13 },
-            color: '#4CAF50'
-          },
-          min: 0,
-          max: 100,
-          ticks: {
-            font: { size: 12 }
-          }
-        },
-        y1: {
-          type: 'linear',
-          display: props.showChannelUtilization || props.showAirUtilTx,
-          position: 'right',
-          title: {
-            display: props.showChannelUtilization || props.showAirUtilTx,
-            text: '使用率 (%)',
-            font: { size: 13 },
-            color: '#2196F3'
-          },
-          min: 0,
-          max: 100,
-          ticks: {
-            font: { size: 12 }
-          },
-          grid: {
-            drawOnChartArea: false,
-          }
-        }
-      }
-    }
-  });
+  fullscreenChartInstance.value = createChartInstance(fullscreenCanvas.value, true);
 
   // 確保全屏圖表正確調整大小
-  nextTick(() => {
-    resizeFullscreenChart();
-  });
+  if (fullscreenChartInstance.value) {
+    nextTick(() => {
+      resizeFullscreenChart();
+    });
+  }
 };
 
 // 調整圖表大小
