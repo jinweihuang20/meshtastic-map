@@ -431,9 +431,9 @@ onUnmounted(() => {
 <style scoped>
 .map-container {
   width: 100%;
-  height: 100vh;
+  height: calc(100vh - var(--navbar-height, 60px));
   position: fixed;
-  top: 70px;
+  top: var(--navbar-height, 60px);
   left: 0;
   right: 0;
   bottom: 0;
@@ -457,13 +457,14 @@ onUnmounted(() => {
   top: calc(var(--navbar-height, 60px) + 10px);
   right: 8px;
   background: rgba(255, 255, 255, 0.95);
-  color:black;
+  color: black;
   padding: 8px 12px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   z-index: 1500;
   font-size: 12px;
   line-height: 1.4;
+  backdrop-filter: blur(10px);
 }
 
 .status-bar > div > div {

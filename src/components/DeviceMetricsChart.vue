@@ -1,5 +1,5 @@
 <template>
-  <div class="metrics-chart-container">
+  <div ref="containerRef" class="metrics-chart-container" :style="{ height: height }">
     <div v-if="loading" class="loading">載入圖表中...</div>
     <div v-else-if="!metrics || metrics.length === 0" class="no-data">暫無設備指標數據</div>
     <div v-else class="chart-wrapper">
@@ -11,13 +11,8 @@
     </div>
 
     <!-- 全屏模式對話框 -->
-    <el-dialog
-      v-model="fullscreenVisible"
-      :title="`${nodeId} - 設備指標趨勢`"
-      :width="dialogWidth"
-      :fullscreen="isMobile"
-      @close="closeFullscreen"
-    >
+    <el-dialog v-model="fullscreenVisible" :title="`${nodeId} - 設備指標趨勢`" :width="dialogWidth" :fullscreen="isMobile"
+      @close="closeFullscreen" @opened="() => { setTimeout(() => resizeFullscreenChart(), 100); }">
       <div class="fullscreen-chart-container">
         <canvas :id="fullscreenCanvasId" ref="fullscreenCanvas"></canvas>
       </div>
@@ -26,7 +21,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { Chart, registerables } from 'chart.js';
 import { ElDialog } from 'element-plus';
 
@@ -65,6 +60,7 @@ const chartCanvas = ref(null);
 const chartInstance = ref(null);
 const loading = ref(false);
 const canvasId = `chart-${props.nodeId}-${Date.now()}`;
+const containerRef = ref(null);
 
 // 全屏相關
 const fullscreenVisible = ref(false);
@@ -79,6 +75,10 @@ const dialogWidth = computed(() => {
   if (window.innerWidth < 1024) return '90%';
   return '90%';
 });
+
+// ResizeObserver 實例
+let resizeObserver = null;
+let windowResizeHandler = null;
 
 // 創建圖表
 const createChart = () => {
@@ -232,6 +232,11 @@ const createChart = () => {
       }
     }
   });
+
+  // 確保圖表正確調整大小
+  nextTick(() => {
+    resizeChart();
+  });
 };
 
 // 創建全屏圖表
@@ -384,6 +389,33 @@ const createFullscreenChart = () => {
       }
     }
   });
+
+  // 確保全屏圖表正確調整大小
+  nextTick(() => {
+    resizeFullscreenChart();
+  });
+};
+
+// 調整圖表大小
+const resizeChart = () => {
+  if (chartInstance.value) {
+    try {
+      chartInstance.value.resize();
+    } catch (error) {
+      console.warn('圖表調整大小失敗:', error);
+    }
+  }
+};
+
+// 調整全屏圖表大小
+const resizeFullscreenChart = () => {
+  if (fullscreenChartInstance.value) {
+    try {
+      fullscreenChartInstance.value.resize();
+    } catch (error) {
+      console.warn('全屏圖表調整大小失敗:', error);
+    }
+  }
 };
 
 // 打開全屏模式
@@ -392,6 +424,10 @@ const openFullscreen = () => {
   // 等待 DOM 更新後創建圖表
   setTimeout(() => {
     createFullscreenChart();
+    // 確保圖表正確調整大小
+    setTimeout(() => {
+      resizeFullscreenChart();
+    }, 50);
   }, 100);
 };
 
@@ -401,6 +437,10 @@ const closeFullscreen = () => {
     fullscreenChartInstance.value.destroy();
     fullscreenChartInstance.value = null;
   }
+  // 關閉全屏後，調整主圖表大小
+  setTimeout(() => {
+    resizeChart();
+  }, 100);
 };
 
 // 監聽 metrics 變化
@@ -408,26 +448,69 @@ watch(() => props.metrics, () => {
   createChart();
 }, { deep: true });
 
+// 監聽窗口大小變化
+windowResizeHandler = () => {
+  resizeChart();
+  if (fullscreenVisible.value) {
+    resizeFullscreenChart();
+  }
+};
+
 // 組件掛載時創建圖表
-onMounted(() => {
+onMounted(async () => {
   if (props.metrics && props.metrics.length > 0) {
     createChart();
+  }
+
+  // 監聽窗口大小變化
+  window.addEventListener('resize', windowResizeHandler);
+
+  // 等待 DOM 更新後設置 ResizeObserver
+  await nextTick();
+  if (containerRef.value && window.ResizeObserver) {
+    resizeObserver = new ResizeObserver(() => {
+      resizeChart();
+    });
+    resizeObserver.observe(containerRef.value);
   }
 });
 
 // 組件卸載時銷毀圖表
 onUnmounted(() => {
+  // 移除窗口大小監聽
+  if (windowResizeHandler) {
+    window.removeEventListener('resize', windowResizeHandler);
+  }
+
+  // 移除 ResizeObserver
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+
+  // 銷毀圖表實例
   if (chartInstance.value) {
     chartInstance.value.destroy();
+    chartInstance.value = null;
+  }
+  if (fullscreenChartInstance.value) {
+    fullscreenChartInstance.value.destroy();
+    fullscreenChartInstance.value = null;
   }
 });
 
 // 暴露方法供外部調用
 defineExpose({
   refresh: createChart,
+  resize: resizeChart,
   destroy: () => {
     if (chartInstance.value) {
       chartInstance.value.destroy();
+      chartInstance.value = null;
+    }
+    if (fullscreenChartInstance.value) {
+      fullscreenChartInstance.value.destroy();
+      fullscreenChartInstance.value = null;
     }
   }
 });
@@ -436,9 +519,10 @@ defineExpose({
 <style scoped>
 .metrics-chart-container {
   width: 100%;
-  height: 100%;
   min-height: 200px;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .loading,
@@ -455,8 +539,9 @@ defineExpose({
 
 .chart-wrapper {
   width: 100%;
-  height: 100%;
+  flex: 1;
   position: relative;
+  min-height: 0;
 }
 
 canvas {

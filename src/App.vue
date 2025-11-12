@@ -46,10 +46,15 @@ html, body {
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+  margin: 0;
+  padding: 0;
 }
 
 .page-container {
   width: 100%;
   min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  position: relative;
 }
 </style>

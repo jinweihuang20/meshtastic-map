@@ -84,6 +84,7 @@ const closeMobileMenu = () => {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   height: var(--navbar-height, 60px);
+  z-index: 1000;
 }
 
 .nav-container {

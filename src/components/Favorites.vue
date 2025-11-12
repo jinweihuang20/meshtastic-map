@@ -60,7 +60,7 @@
             v-if="nodeMetrics[node.node_id] && nodeMetrics[node.node_id].length > 0"
             :node-id="node.node_id"
             :metrics="nodeMetrics[node.node_id]"
-            height="100%"
+            :height="chartHeight"
           />
           <div v-else-if="loadingMetrics[node.node_id]" class="chart-placeholder">
             載入圖表中...
@@ -75,7 +75,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, defineEmits } from 'vue';
+import { ref, computed, onMounted, onUnmounted, defineEmits } from 'vue';
 import DeviceMetricsChart from './DeviceMetricsChart.vue';
 
 const emit = defineEmits(['view-on-map']);
@@ -83,6 +83,26 @@ const emit = defineEmits(['view-on-map']);
 const favoriteNodes = ref([]);
 const nodeMetrics = ref({});
 const loadingMetrics = ref({});
+const windowWidth = ref(window.innerWidth);
+
+// 監聽窗口大小變化
+const handleResize = () => {
+  windowWidth.value = window.innerWidth;
+};
+
+// 響應式圖表高度
+const chartHeight = computed(() => {
+  // 移動端（直立螢幕）
+  if (windowWidth.value < 768) {
+    return '280px';
+  }
+  // 平板
+  if (windowWidth.value < 1024) {
+    return '350px';
+  }
+  // 桌面
+  return '400px';
+});
 
 // 獲取設備指標數據
 const fetchDeviceMetrics = async (nodeId) => {
@@ -143,6 +163,11 @@ const viewOnMap = (node) => {
 
 onMounted(() => {
   loadFavorites();
+  window.addEventListener('resize', handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
 });
 
 // 暴露方法供外部調用
@@ -153,11 +178,15 @@ defineExpose({
 
 <style scoped>
 .favorites-container {
-  padding: 0;
-  padding-top: 1465px;
-  max-width: 100%;
-  min-height: 100vh;
+  width: 100%;
+  min-height: calc(100vh - var(--navbar-height, 60px));
+  padding-top: calc(var(--navbar-height, 60px) + 16px);
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-bottom: 16px;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  box-sizing: border-box;
+  position: relative;
 }
 
 .favorites-header {
@@ -186,7 +215,8 @@ defineExpose({
   background: white;
   border-radius: 0;
   box-shadow: none;
-  margin: 0;
+  margin: 0 auto;
+  max-width: 100%;
 }
 
 .empty-icon {
@@ -212,6 +242,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 0;
+  width: 100%;
 }
 
 .favorite-item {
@@ -219,10 +250,12 @@ defineExpose({
   border-radius: 0;
   box-shadow: none;
   border-bottom: 8px solid #e9ecef;
-  overflow: hidden;
+  overflow: visible;
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  position: relative;
 }
 
 .favorite-item:hover {
@@ -340,7 +373,8 @@ defineExpose({
 .chart-section {
   padding: 12px;
   background: #f8f9fa;
-  min-height: 320px;
+  height: 280px;
+  min-height: 280px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -357,8 +391,10 @@ defineExpose({
 /* Tablet and Desktop Styles - 左右佈局 */
 @media (min-width: 768px) {
   .favorites-container {
-    padding: 20px 20px 20px;
-    padding-top: calc(var(--navbar-height, 60px) + 720px);
+    padding-top: calc(var(--navbar-height, 60px) + 20px);
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: 20px;
   }
 
   .favorites-header {
@@ -427,6 +463,7 @@ defineExpose({
   .chart-section {
     flex: 1;
     padding: 20px;
+    height: 350px;
     min-height: 350px;
   }
 }
@@ -434,7 +471,10 @@ defineExpose({
 /* Large Desktop Styles */
 @media (min-width: 1024px) {
   .favorites-container {
-    padding: 820px 30px 30px;
+    padding-top: calc(var(--navbar-height, 60px) + 30px);
+    padding-left: 30px;
+    padding-right: 30px;
+    padding-bottom: 30px;
   }
 
   .favorites-header h2 {
@@ -450,6 +490,7 @@ defineExpose({
   }
 
   .chart-section {
+    height: 400px;
     min-height: 400px;
   }
 }
@@ -457,7 +498,10 @@ defineExpose({
 /* Extra Large Desktop */
 @media (min-width: 1400px) {
   .favorites-container {
-    padding: 820px 40px 40px;
+    padding-top: calc(var(--navbar-height, 70px) + 40px);
+    padding-left: 40px;
+    padding-right: 40px;
+    padding-bottom: 40px;
   }
 
   .favorites-list {
