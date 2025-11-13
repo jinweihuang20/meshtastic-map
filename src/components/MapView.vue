@@ -19,6 +19,13 @@
       </div>
     </div>
 
+    <!-- 地圖主題切換按鈕 -->
+    <div class="theme-toggle-container">
+      <button class="theme-toggle-btn" @click="toggleMapTheme" :title="isDarkMode ? '切換到淺色模式' : '切換到深色模式'">
+        {{ isDarkMode ? '☀️' : '🌙' }}
+      </button>
+    </div>
+
     <!-- 搜尋欄 -->
     <div class="search-bar">
       <!-- 搜尋結果列表 -->
@@ -111,7 +118,13 @@ const favorites = ref([]);
 
 // 地圖狀態保存相關
 const MAP_STATE_KEY = 'meshtastic_map_state';
+const MAP_THEME_KEY = 'meshtastic_map_theme';
 let mapStateSaveTimeout = null; // 防抖計時器
+
+// 地圖主題相關
+const isDarkMode = ref(false);
+const currentTileLayer = ref(null);
+const labelsLayer = ref(null); // 標籤圖層（深色模式使用）
 
 // 從 API 獲取節點數據
 const fetchNodes = async () => {
@@ -476,12 +489,12 @@ const renderNodes = () => {
       const markerColor = hasConnection ? '#15b500ff' : '#0015d6ff'; // 綠色：有連接，藍色：無連接
 
       const marker = L.circleMarker([node.latitude, node.longitude], {
-        radius: 6,
+        radius: 7,
         fillColor: markerColor,
         color: '#FFFFFF',
         weight: 1,
         opacity: 1,
-        fillOpacity: 0.7
+        fillOpacity: 1
       });
 
       // 點擊標記時打開 drawer
@@ -593,23 +606,112 @@ const loadMapState = () => {
   return null;
 };
 
+// 從 localStorage 讀取地圖主題
+const loadMapTheme = () => {
+  try {
+    const stored = localStorage.getItem(MAP_THEME_KEY);
+    if (stored !== null) {
+      return stored === 'dark';
+    }
+  } catch (error) {
+    console.error('讀取地圖主題失敗:', error);
+  }
+  return false; // 默認淺色模式
+};
+
+// 保存地圖主題到 localStorage
+const saveMapTheme = (theme) => {
+  try {
+    localStorage.setItem(MAP_THEME_KEY, theme ? 'dark' : 'light');
+  } catch (error) {
+    console.error('保存地圖主題失敗:', error);
+  }
+};
+
+// 切換地圖主題
+const toggleMapTheme = () => {
+  if (!map.value) return;
+
+  isDarkMode.value = !isDarkMode.value;
+  saveMapTheme(isDarkMode.value);
+
+  // 移除當前圖層
+  if (currentTileLayer.value) {
+    map.value.removeLayer(currentTileLayer.value);
+  }
+  if (labelsLayer.value) {
+    map.value.removeLayer(labelsLayer.value);
+    labelsLayer.value = null;
+  }
+
+  // 添加新圖層
+  if (isDarkMode.value) {
+    // 深色模式：使用 CartoDB Dark No Labels + Light Labels（顯示更多細節）
+    currentTileLayer.value = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19
+    });
+
+    // 添加標籤圖層以顯示更多細節（道路名稱、地點名稱等）
+    labelsLayer.value = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19,
+      pane: 'overlayPane'
+    });
+    labelsLayer.value.addTo(map.value);
+  } else {
+    // 淺色模式：使用 OpenStreetMap
+    currentTileLayer.value = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    });
+  }
+
+  currentTileLayer.value.addTo(map.value);
+  console.log('地圖主題已切換為:', isDarkMode.value ? '深色模式' : '淺色模式');
+};
+
 // 初始化地圖
 onMounted(async () => {
-  // 從 localStorage 讀取地圖狀態
+  // 從 localStorage 讀取地圖狀態和主題
   const savedState = loadMapState();
   const initialCenter = savedState ? savedState.center : [25, 121];
   const initialZoom = savedState ? savedState.zoom : 8;
+  isDarkMode.value = loadMapTheme();
 
   // 創建地圖實例
   map.value = L.map('map').setView(initialCenter, initialZoom);
 
-  // 添加 OpenStreetMap 圖層
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19
-  }).addTo(map.value);
+  // 根據保存的主題添加對應的圖層
+  if (isDarkMode.value) {
+    // 深色模式：使用 CartoDB Dark No Labels + Light Labels（顯示更多細節）
+    currentTileLayer.value = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19
+    });
 
-  console.log('地圖已初始化', savedState ? '（已恢復上次狀態）' : '（使用默認狀態）');
+    // 添加標籤圖層以顯示更多細節
+    labelsLayer.value = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19,
+      pane: 'overlayPane'
+    });
+    labelsLayer.value.addTo(map.value);
+  } else {
+    // 淺色模式：使用 OpenStreetMap
+    currentTileLayer.value = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    });
+  }
+
+  currentTileLayer.value.addTo(map.value);
+
+  console.log('地圖已初始化', savedState ? '（已恢復上次狀態）' : '（使用默認狀態）', isDarkMode.value ? '（深色模式）' : '（淺色模式）');
 
   // 監聽地圖移動和縮放事件
   map.value.on('moveend', () => {
@@ -673,6 +775,12 @@ onUnmounted(() => {
       markerClusterGroup.value = null;
     }
 
+    // 清理標籤圖層
+    if (labelsLayer.value) {
+      map.value.removeLayer(labelsLayer.value);
+      labelsLayer.value = null;
+    }
+
     // 清理地圖
     map.value.remove();
   }
@@ -731,6 +839,43 @@ onUnmounted(() => {
   margin: 2px 0;
 }
 
+/* 地圖主題切換按鈕 */
+.theme-toggle-container {
+  position: fixed;
+  bottom: 140px;
+  /* 位於搜尋欄上方，避免遮蔽縮放按鈕 */
+  right: 10px;
+  z-index: 1500;
+}
+
+.theme-toggle-btn {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.95);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
+  padding: 0;
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transform: translateY(-2px);
+}
+
+.theme-toggle-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
 /* 平板和桌面優化 */
 @media (min-width: 768px) {
   .status-bar {
@@ -743,6 +888,19 @@ onUnmounted(() => {
 
   .status-bar>div>div {
     margin: 4px 0;
+  }
+
+  .theme-toggle-container {
+    bottom: 100px;
+    /* 桌面版調整位置 */
+    right: 20px;
+  }
+
+  .theme-toggle-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+    border-radius: 10px;
   }
 }
 
