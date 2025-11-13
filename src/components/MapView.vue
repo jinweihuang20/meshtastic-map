@@ -14,9 +14,8 @@
     <div class="status-bar">
       <div v-if="loading">載入中...</div>
       <div v-else>
-        <div><strong>總節點數:</strong> {{ nodes.length }}</div>
-        <div style="color: #00FF00;"><strong>● MQTT:</strong> {{ connectedCount }}</div>
-        <div style="color: #3388FF;"><strong>○ 未連接:</strong> {{ disconnectedCount }}</div>
+        <div style="color: rgb(22, 163, 74);"><strong>● MQTT Connected</strong></div>
+        <div style="color: #3388FF;"><strong>● MQTT Disconnected</strong></div>
       </div>
     </div>
 

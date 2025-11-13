@@ -154,7 +154,7 @@ const prepareLabels = () => {
 // 創建數據集
 const createDatasets = (isFullscreen = false) => {
   const datasets = [];
-  const pointRadius = 4;
+  const pointRadius = isMobile ? 2 : 4;
   const pointHoverRadius = 4;
   const batteryHoverRadius = isFullscreen ? 6 : 5;
 
