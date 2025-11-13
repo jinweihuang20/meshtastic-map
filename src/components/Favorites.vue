@@ -41,7 +41,7 @@
               <div v-if="getLatestMetric(node.node_id).channel_utilization !== undefined" class="info-row">
                 <span class="label">頻道利用率:</span>
                 <span class="value">{{ parseFloat(getLatestMetric(node.node_id).channel_utilization || 0).toFixed(1)
-                }}%</span>
+                  }}%</span>
               </div>
               <div v-if="getLatestMetric(node.node_id).air_util_tx !== undefined" class="info-row">
                 <span class="label">空中傳輸率:</span>
@@ -370,29 +370,37 @@ defineExpose({
 }
 
 .node-details {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .info-row {
   display: flex;
   flex-direction: row;
-  gap: 5px;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 20px;
 }
 
 .label {
-  font-size: 10px;
+  font-size: 11px;
   color: #888888;
   font-weight: 500;
-  width: 70px;
+  min-width: 85px;
+  flex-shrink: 0;
+  flex-grow: 0;
+  line-height: 1.4;
 }
 
 .value {
   font-size: 12px;
   color: #e0e0e0;
   font-weight: 500;
-  word-break: break-all;
+  flex: 1;
+  word-break: break-word;
+  line-height: 1.4;
+  overflow-wrap: break-word;
 }
 
 .status-badge {
@@ -534,8 +542,27 @@ defineExpose({
     border-radius: 0 12px 12px 0;
   }
 
+  .node-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 16px;
+  }
+
   .info-row {
     flex-direction: column;
+    gap: 4px;
+    min-height: auto;
+  }
+
+  .label {
+    min-width: auto;
+    font-size: 10px;
+    color: #888888;
+  }
+
+  .value {
+    font-size: 13px;
+    word-break: break-word;
   }
 
 }
@@ -566,8 +593,22 @@ defineExpose({
     min-height: 400px;
   }
 
+  .node-details {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 20px;
+  }
+
   .info-row {
     flex-direction: column;
+    gap: 4px;
+  }
+
+  .label {
+    font-size: 11px;
+  }
+
+  .value {
+    font-size: 14px;
   }
 }
 
