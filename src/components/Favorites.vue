@@ -179,6 +179,14 @@ defineExpose({
   background: #0f0f0f;
   box-sizing: border-box;
   position: relative;
+  /* 確保可以正常滾動 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* 允許垂直滾動 */
+  touch-action: pan-y;
+  /* 確保可以滾動到頂部和底部 */
+  overscroll-behavior: contain;
 }
 
 .favorites-header {
@@ -252,6 +260,11 @@ defineExpose({
   width: 100%;
   position: relative;
   margin-bottom: 10px;
+  /* 確保觸摸事件可以正常傳遞 */
+  touch-action: pan-y;
+  /* 防止意外觸發縮放 */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .favorite-item:hover {

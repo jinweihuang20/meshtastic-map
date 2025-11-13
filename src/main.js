@@ -8,15 +8,28 @@ import router from './router'
 
 // 禁止縮放功能
 const disableZoom = () => {
-    // 禁止雙擊縮放
+    // 禁止雙擊縮放（移動端）- 只在非滾動區域生效
     let lastTouchEnd = 0
+    let touchStartY = 0
+    let touchStartTime = 0
+
+    document.addEventListener('touchstart', (event) => {
+        touchStartY = event.touches[0].clientY
+        touchStartTime = Date.now()
+    }, { passive: true })
+
     document.addEventListener('touchend', (event) => {
         const now = Date.now()
-        if (now - lastTouchEnd <= 300) {
+        const touchEndY = event.changedTouches[0].clientY
+        const touchDuration = now - touchStartTime
+        const touchDistance = Math.abs(touchEndY - touchStartY)
+
+        // 只有在快速雙擊且移動距離很小時才阻止（避免影響滾動）
+        if (now - lastTouchEnd <= 300 && touchDuration < 200 && touchDistance < 10) {
             event.preventDefault()
         }
         lastTouchEnd = now
-    }, false)
+    }, { passive: false })
 
     // 禁止手勢縮放（雙指縮放）
     document.addEventListener('gesturestart', (e) => {
@@ -49,15 +62,6 @@ const disableZoom = () => {
         }
     })
 
-    // 禁止雙擊縮放（移動端）
-    let lastTap = 0
-    document.addEventListener('touchstart', (e) => {
-        const now = Date.now()
-        if (now - lastTap < 300) {
-            e.preventDefault()
-        }
-        lastTap = now
-    }, { passive: false })
 
     // 設置 meta viewport（動態設置以確保生效）
     const viewport = document.querySelector('meta[name="viewport"]')
