@@ -1,15 +1,10 @@
 <template>
-  <el-drawer
-    v-model="drawerVisible"
-    :title="nodeName || '節點詳情'"
-    direction="ltr"
-    :size="drawerSize"
-    :before-close="handleClose"
-  >
+  <el-drawer v-model="drawerVisible" :title="nodeName || '節點詳情'" direction="ltr" :size="drawerSize"
+    :before-close="handleClose" append-to-body>
     <div class="node-drawer-content">
       <!-- 節點基本信息 -->
       <div class="info-section">
-        <h3 class="section-title">基本信息</h3>
+        <h3 class="section-title">基本訊息</h3>
         <div class="info-grid">
           <div class="info-item">
             <span class="info-label">節點名稱</span>
@@ -55,14 +50,12 @@
       <div class="chart-section">
         <h3 class="section-title">設備指標趨勢</h3>
         <div class="chart-container">
-          <DeviceMetricsChart
-            v-if="!loading && metrics.length > 0"
-            :node-id="nodeId"
-            :metrics="metrics"
-            height="350px"
-          />
+          <DeviceMetricsChart v-if="!loading && metrics.length > 0" :node-id="nodeId" :metrics="metrics"
+            height="350px" />
           <div v-else-if="loading" class="status-message">
-            <el-icon class="is-loading"><Loading /></el-icon>
+            <el-icon class="is-loading">
+              <Loading />
+            </el-icon>
             <span>載入圖表中...</span>
           </div>
           <div v-else class="status-message">
@@ -119,7 +112,7 @@ const isFavorited = ref(false);
 
 // 響應式 drawer 尺寸
 const drawerSize = computed(() => {
-  if (window.innerWidth < 768) return '90%';
+  if (window.innerWidth < 768) return '100%';
   if (window.innerWidth < 1024) return '60%';
   return '500px';
 });

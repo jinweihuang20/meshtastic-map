@@ -7,11 +7,7 @@
     </div>
 
     <div v-else class="favorites-list">
-      <div
-        v-for="node in favoriteNodes"
-        :key="node.node_id"
-        class="favorite-item"
-      >
+      <div v-for="node in favoriteNodes" :key="node.node_id" class="favorite-item">
         <!-- 左側：節點信息 -->
         <div class="node-info-section">
           <div class="node-header">
@@ -56,12 +52,8 @@
 
         <!-- 右側：趨勢圖 -->
         <div class="chart-section">
-          <DeviceMetricsChart
-            v-if="nodeMetrics[node.node_id] && nodeMetrics[node.node_id].length > 0"
-            :node-id="node.node_id"
-            :metrics="nodeMetrics[node.node_id]"
-            :height="chartHeight"
-          />
+          <DeviceMetricsChart v-if="nodeMetrics[node.node_id] && nodeMetrics[node.node_id].length > 0"
+            :node-id="node.node_id" :metrics="nodeMetrics[node.node_id]" :height="chartHeight" />
           <div v-else-if="loadingMetrics[node.node_id]" class="chart-placeholder">
             載入圖表中...
           </div>
@@ -320,14 +312,15 @@ defineExpose({
 
 .info-row {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  gap: 20px;
 }
 
 .label {
   font-size: 10px;
   color: #7f8c8d;
   font-weight: 500;
+  width: 30px;
 }
 
 .value {
@@ -466,6 +459,10 @@ defineExpose({
     height: 350px;
     min-height: 350px;
   }
+
+  .info-row {
+    flex-direction: column;
+  }
 }
 
 /* Large Desktop Styles */
@@ -493,6 +490,10 @@ defineExpose({
     height: 400px;
     min-height: 400px;
   }
+
+  .info-row {
+    flex-direction: column;
+  }
 }
 
 /* Extra Large Desktop */
@@ -518,6 +519,10 @@ defineExpose({
 
   .node-icon {
     font-size: 28px;
+  }
+
+  .info-row {
+    flex-direction: column;
   }
 }
 </style>

@@ -1,12 +1,19 @@
 <template>
   <div ref="containerRef" class="metrics-chart-container" :style="{ height: height }">
     <div v-if="loading" class="loading">載入圖表中...</div>
-    <div v-else-if="!metrics || metrics.length === 0" class="no-data">暫無設備指標數據</div>
+    <div v-else-if="!displayMetrics || displayMetrics.length === 0" class="no-data">暫無設備指標數據</div>
     <div v-else class="chart-wrapper">
-      <!-- 放大按鈕 -->
-      <button class="zoom-btn" @click="openFullscreen" title="放大圖表">
-        🔍
-      </button>
+      <!-- 控制欄 -->
+      <div class="chart-controls">
+        <!-- 天數選擇下拉選單 -->
+        <el-select v-model="selectedDays" size="small" class="days-select" @change="handleDaysChange">
+          <el-option v-for="option in dayOptions" :key="option.value" :label="option.label" :value="option.value" />
+        </el-select>
+        <!-- 放大按鈕 -->
+        <button class="zoom-btn" @click="openFullscreen" title="放大圖表">
+          🔍
+        </button>
+      </div>
       <canvas :id="canvasId" ref="chartCanvas"></canvas>
     </div>
 
@@ -23,7 +30,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { Chart, registerables } from 'chart.js';
-import { ElDialog } from 'element-plus';
+import { ElDialog, ElSelect, ElOption } from 'element-plus';
 
 // 註冊 Chart.js 組件
 Chart.register(...registerables);
@@ -62,6 +69,9 @@ const loading = ref(false);
 const canvasId = `chart-${props.nodeId}-${Date.now()}`;
 const containerRef = ref(null);
 
+// 內部存儲的 metrics（從 API 獲取）
+const internalMetrics = ref([]);
+
 // 全屏相關
 const fullscreenVisible = ref(false);
 const fullscreenCanvas = ref(null);
@@ -80,9 +90,56 @@ const dialogWidth = computed(() => {
 let resizeObserver = null;
 let windowResizeHandler = null;
 
+// 天數選擇
+const selectedDays = ref(7);
+const dayOptions = [
+  { label: '3 天', value: 3 },
+  { label: '5 天', value: 5 },
+  { label: '7 天', value: 7 }
+];
+
+// 決定使用哪個 metrics（優先使用 props.metrics，否則使用內部從 API 獲取的）
+const displayMetrics = computed(() => {
+  // 如果父組件提供了 metrics，需要根據選擇的天數過濾
+  if (props.metrics && props.metrics.length > 0) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - selectedDays.value);
+
+    return props.metrics.filter(m => {
+      const metricDate = new Date(m.created_at);
+      return metricDate >= cutoffDate;
+    });
+  }
+  // 否則使用內部從 API 獲取的數據（已經根據天數過濾）
+  return internalMetrics.value;
+});
+
+// 從 API 獲取設備指標數據
+const fetchMetricsFromAPI = async () => {
+  if (!props.nodeId) {
+    return;
+  }
+
+  try {
+    loading.value = true;
+    // 根據選擇的天數計算 time_from
+    const timeFrom = new Date(Date.now() - selectedDays.value * 24 * 60 * 60 * 1000).toISOString();
+    const response = await fetch(`/api/v1/nodes/${props.nodeId}/device-metrics?time_from=${timeFrom}`);
+    const data = await response.json();
+    // 反轉數據陣列以確保時間順序從舊到新
+    const metrics = data.device_metrics || [];
+    internalMetrics.value = metrics.reverse();
+  } catch (error) {
+    console.error('獲取設備指標失敗:', error);
+    internalMetrics.value = [];
+  } finally {
+    loading.value = false;
+  }
+};
+
 // 準備標籤數據
 const prepareLabels = () => {
-  return props.metrics.map(m => new Date(m.created_at).toLocaleDateString('zh-TW', {
+  return displayMetrics.value.map(m => new Date(m.created_at).toLocaleDateString('zh-TW', {
     month: 'short',
     day: 'numeric'
   }));
@@ -91,13 +148,13 @@ const prepareLabels = () => {
 // 創建數據集
 const createDatasets = (isFullscreen = false) => {
   const datasets = [];
-  const pointRadius = 2;
+  const pointRadius = 4;
   const pointHoverRadius = 4;
   const batteryHoverRadius = isFullscreen ? 6 : 5;
 
   // 電池電量數據集
   if (props.showBattery) {
-    const batteryData = props.metrics.map(m => m.battery_level || 0);
+    const batteryData = displayMetrics.value.map(m => m.battery_level || 0);
     datasets.push({
       label: '電池電量 (%)',
       data: batteryData,
@@ -112,13 +169,12 @@ const createDatasets = (isFullscreen = false) => {
 
   // 頻道使用率數據集
   if (props.showChannelUtilization) {
-    const channelUtilData = props.metrics.map(m => parseFloat(m.channel_utilization) || 0);
+    const channelUtilData = displayMetrics.value.map(m => parseFloat(m.channel_utilization) || 0);
     datasets.push({
       label: '頻道使用率 (%)',
       data: channelUtilData,
       borderColor: 'rgb(0, 208, 76)',
       backgroundColor: 'rgba(33, 150, 243, 0.1)',
-      yAxisID: 'y1',
       tension: 0,
       borderWidth: 0, // 不顯示線
       pointRadius: pointRadius,
@@ -130,13 +186,12 @@ const createDatasets = (isFullscreen = false) => {
 
   // 空中傳輸率數據集
   if (props.showAirUtilTx) {
-    const airUtilData = props.metrics.map(m => parseFloat(m.air_util_tx) || 0);
+    const airUtilData = displayMetrics.value.map(m => parseFloat(m.air_util_tx) || 0);
     datasets.push({
       label: '空中傳輸率 (%)',
       data: airUtilData,
       borderColor: 'rgb(244, 102, 0)',
       backgroundColor: 'transparent', // 不顯示填充
-      yAxisID: 'y1',
       tension: 0,
       borderWidth: 0, // 不顯示線
       pointRadius: pointRadius,
@@ -163,7 +218,7 @@ const createChartOptions = (isFullscreen = false) => {
 
   const padding = {
     legend: isFullscreen ? 15 : 10,
-    title: isFullscreen ? { top: 10, bottom: 15 } : { top: 5, bottom: 10 },
+    title: { top: 15, bottom: 10 },
     tooltip: isFullscreen ? 12 : 10
   };
 
@@ -215,44 +270,95 @@ const createChartOptions = (isFullscreen = false) => {
         type: 'linear',
         display: props.showBattery,
         position: 'left',
-        title: {
-          display: props.showBattery,
-          text: isFullscreen ? '電池 (%)' : '電量 (%)',
-          font: { size: fontSize.yAxis },
-          color: '#4CAF50'
-        },
         min: 0,
         max: isFullscreen ? 100 : 110,
         ticks: {
           font: { size: fontSize.yAxisTicks }
         }
       },
-      y1: {
-        type: 'linear',
-        display: props.showChannelUtilization || props.showAirUtilTx,
-        position: 'right',
-        title: {
-          display: props.showChannelUtilization || props.showAirUtilTx,
-          text: '使用率 (%)',
-          font: { size: fontSize.yAxis },
-          color: '#2196F3'
-        },
-        min: 0,
-        max: 100,
-        ticks: {
-          font: { size: fontSize.yAxisTicks }
-        },
-        grid: {
-          drawOnChartArea: false,
-        }
-      }
     }
   };
 };
 
+// 處理天數變化
+const handleDaysChange = async () => {
+  // 如果父組件提供了 metrics，則不需要從 API 獲取（保持向後兼容）
+  if (props.metrics && props.metrics.length > 0) {
+    // 使用 props.metrics，但需要過濾（客戶端過濾）
+    await nextTick();
+    // 確保 canvas 已準備好
+    if (chartCanvas.value) {
+      createChart();
+    }
+    if (fullscreenVisible.value && fullscreenCanvas.value) {
+      setTimeout(() => {
+        createFullscreenChart();
+      }, 100);
+    }
+  } else {
+    // 從 API 重新獲取數據
+    await fetchMetricsFromAPI();
+    await nextTick();
+    // 確保 canvas 已準備好
+    if (chartCanvas.value) {
+      createChart();
+    }
+    if (fullscreenVisible.value && fullscreenCanvas.value) {
+      setTimeout(() => {
+        createFullscreenChart();
+      }, 100);
+    }
+  }
+};
+
+// 銷毀 canvas 上的任何現有圖表實例
+const destroyExistingChart = (canvas) => {
+  if (!canvas) {
+    return;
+  }
+
+  try {
+    // 使用 Chart.js 的方法檢查是否有已存在的圖表實例
+    const existingChart = Chart.getChart(canvas);
+    if (existingChart) {
+      if (!existingChart.destroyed) {
+        existingChart.destroy();
+      }
+    }
+  } catch (error) {
+    console.warn('銷毀現有圖表實例時出錯:', error);
+  }
+};
+
 // 創建圖表實例
 const createChartInstance = (canvas, isFullscreen = false) => {
-  if (!canvas || !props.metrics || props.metrics.length === 0) {
+  if (!canvas) {
+    return null;
+  }
+
+  // 檢查 canvas 元素是否有效
+  if (!canvas.getContext) {
+    console.warn('Canvas 元素無效');
+    return null;
+  }
+
+  // 先銷毀 canvas 上可能存在的任何圖表實例
+  destroyExistingChart(canvas);
+
+  // 嘗試獲取 canvas context 以驗證 canvas 是否可用
+  try {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      console.warn('無法獲取 canvas context');
+      return null;
+    }
+  } catch (error) {
+    console.warn('獲取 canvas context 失敗:', error);
+    return null;
+  }
+
+  // 如果沒有數據，返回 null（但不會銷毀現有圖表）
+  if (!displayMetrics.value || displayMetrics.value.length === 0) {
     return null;
   }
 
@@ -260,14 +366,19 @@ const createChartInstance = (canvas, isFullscreen = false) => {
   const datasets = createDatasets(isFullscreen);
   const options = createChartOptions(isFullscreen);
 
-  return new Chart(canvas, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: datasets
-    },
-    options: options
-  });
+  try {
+    return new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: datasets
+      },
+      options: options
+    });
+  } catch (error) {
+    console.error('創建圖表實例失敗:', error);
+    return null;
+  }
 };
 
 // 創建圖表
@@ -276,19 +387,47 @@ const createChart = () => {
     return;
   }
 
-  // 銷毀舊圖表
-  if (chartInstance.value) {
-    chartInstance.value.destroy();
+  // 檢查 canvas 元素是否還在 DOM 中
+  if (!document.contains(chartCanvas.value)) {
+    console.warn('Canvas 元素已從 DOM 中移除');
+    return;
   }
 
-  chartInstance.value = createChartInstance(chartCanvas.value, false);
-
-  // 確保圖表正確調整大小
-  if (chartInstance.value) {
-    nextTick(() => {
-      resizeChart();
-    });
+  // 如果沒有數據，不銷毀現有圖表，直接返回
+  if (!displayMetrics.value || displayMetrics.value.length === 0) {
+    return;
   }
+
+  // 銷毀舊圖表實例（通過引用）
+  if (chartInstance.value) {
+    try {
+      if (!chartInstance.value.destroyed) {
+        chartInstance.value.destroy();
+      }
+    } catch (error) {
+      console.warn('銷毀圖表時出錯:', error);
+    }
+    chartInstance.value = null;
+  }
+
+  // 等待一小段時間確保舊圖表完全銷毀
+  setTimeout(() => {
+    if (!chartCanvas.value || !document.contains(chartCanvas.value)) {
+      return;
+    }
+
+    // createChartInstance 內部會處理 canvas 上可能存在的其他圖表實例
+    chartInstance.value = createChartInstance(chartCanvas.value, false);
+
+    // 確保圖表正確調整大小
+    if (chartInstance.value) {
+      nextTick(() => {
+        if (chartInstance.value && !chartInstance.value.destroyed) {
+          resizeChart();
+        }
+      });
+    }
+  }, 100);
 };
 
 // 創建全屏圖表
@@ -297,24 +436,52 @@ const createFullscreenChart = () => {
     return;
   }
 
-  // 銷毀舊圖表
-  if (fullscreenChartInstance.value) {
-    fullscreenChartInstance.value.destroy();
+  // 檢查 canvas 元素是否還在 DOM 中
+  if (!document.contains(fullscreenCanvas.value)) {
+    console.warn('全屏 Canvas 元素已從 DOM 中移除');
+    return;
   }
 
-  fullscreenChartInstance.value = createChartInstance(fullscreenCanvas.value, true);
-
-  // 確保全屏圖表正確調整大小
-  if (fullscreenChartInstance.value) {
-    nextTick(() => {
-      resizeFullscreenChart();
-    });
+  // 如果沒有數據，不銷毀現有圖表，直接返回
+  if (!displayMetrics.value || displayMetrics.value.length === 0) {
+    return;
   }
+
+  // 銷毀舊圖表實例（通過引用）
+  if (fullscreenChartInstance.value) {
+    try {
+      if (!fullscreenChartInstance.value.destroyed) {
+        fullscreenChartInstance.value.destroy();
+      }
+    } catch (error) {
+      console.warn('銷毀全屏圖表時出錯:', error);
+    }
+    fullscreenChartInstance.value = null;
+  }
+
+  // 等待一小段時間確保舊圖表完全銷毀
+  setTimeout(() => {
+    if (!fullscreenCanvas.value || !document.contains(fullscreenCanvas.value)) {
+      return;
+    }
+
+    // createChartInstance 內部會處理 canvas 上可能存在的其他圖表實例
+    fullscreenChartInstance.value = createChartInstance(fullscreenCanvas.value, true);
+
+    // 確保全屏圖表正確調整大小
+    if (fullscreenChartInstance.value) {
+      nextTick(() => {
+        if (fullscreenChartInstance.value && !fullscreenChartInstance.value.destroyed) {
+          resizeFullscreenChart();
+        }
+      });
+    }
+  }, 100);
 };
 
 // 調整圖表大小
 const resizeChart = () => {
-  if (chartInstance.value) {
+  if (chartInstance.value && !chartInstance.value.destroyed) {
     try {
       chartInstance.value.resize();
     } catch (error) {
@@ -325,7 +492,7 @@ const resizeChart = () => {
 
 // 調整全屏圖表大小
 const resizeFullscreenChart = () => {
-  if (fullscreenChartInstance.value) {
+  if (fullscreenChartInstance.value && !fullscreenChartInstance.value.destroyed) {
     try {
       fullscreenChartInstance.value.resize();
     } catch (error) {
@@ -335,8 +502,12 @@ const resizeFullscreenChart = () => {
 };
 
 // 打開全屏模式
-const openFullscreen = () => {
+const openFullscreen = async () => {
   fullscreenVisible.value = true;
+  // 確保數據是最新的
+  if (internalMetrics.value.length === 0) {
+    await fetchMetricsFromAPI();
+  }
   // 等待 DOM 更新後創建圖表
   setTimeout(() => {
     createFullscreenChart();
@@ -350,31 +521,91 @@ const openFullscreen = () => {
 // 關閉全屏模式
 const closeFullscreen = () => {
   if (fullscreenChartInstance.value) {
-    fullscreenChartInstance.value.destroy();
+    try {
+      if (!fullscreenChartInstance.value.destroyed) {
+        fullscreenChartInstance.value.destroy();
+      }
+    } catch (error) {
+      console.warn('關閉全屏時銷毀圖表出錯:', error);
+    }
     fullscreenChartInstance.value = null;
   }
   // 關閉全屏後，調整主圖表大小
   setTimeout(() => {
-    resizeChart();
+    if (chartInstance.value && !chartInstance.value.destroyed) {
+      resizeChart();
+    }
   }, 100);
 };
 
-// 監聽 metrics 變化
+// 監聽 nodeId 變化，重新獲取數據
+watch(() => props.nodeId, async () => {
+  // 如果父組件沒有提供 metrics，則從 API 獲取
+  if (!props.metrics || props.metrics.length === 0) {
+    await fetchMetricsFromAPI();
+  }
+  nextTick(() => {
+    createChart();
+  });
+});
+
+// 監聽 props.metrics 變化
 watch(() => props.metrics, () => {
-  createChart();
+  nextTick(() => {
+    createChart();
+    if (fullscreenVisible.value) {
+      setTimeout(() => {
+        createFullscreenChart();
+      }, 50);
+    }
+  });
+}, { deep: true });
+
+// 監聽內部 metrics 變化
+watch(internalMetrics, () => {
+  nextTick(() => {
+    createChart();
+    if (fullscreenVisible.value) {
+      setTimeout(() => {
+        createFullscreenChart();
+      }, 50);
+    }
+  });
+}, { deep: true });
+
+// 監聽 displayMetrics 變化
+watch(displayMetrics, () => {
+  nextTick(() => {
+    createChart();
+    if (fullscreenVisible.value) {
+      setTimeout(() => {
+        createFullscreenChart();
+      }, 50);
+    }
+  });
 }, { deep: true });
 
 // 監聽窗口大小變化
 windowResizeHandler = () => {
-  resizeChart();
-  if (fullscreenVisible.value) {
+  // 使用防抖避免頻繁調用
+  if (chartInstance.value && !chartInstance.value.destroyed) {
+    resizeChart();
+  }
+  if (fullscreenVisible.value && fullscreenChartInstance.value && !fullscreenChartInstance.value.destroyed) {
     resizeFullscreenChart();
   }
 };
 
 // 組件掛載時創建圖表
 onMounted(async () => {
-  if (props.metrics && props.metrics.length > 0) {
+  await nextTick();
+
+  // 如果父組件沒有提供 metrics，則從 API 獲取
+  if (!props.metrics || props.metrics.length === 0) {
+    await fetchMetricsFromAPI();
+  }
+
+  if (displayMetrics.value && displayMetrics.value.length > 0) {
     createChart();
   }
 
@@ -385,7 +616,10 @@ onMounted(async () => {
   await nextTick();
   if (containerRef.value && window.ResizeObserver) {
     resizeObserver = new ResizeObserver(() => {
-      resizeChart();
+      // 檢查圖表實例是否存在且未銷毀
+      if (chartInstance.value && !chartInstance.value.destroyed) {
+        resizeChart();
+      }
     });
     resizeObserver.observe(containerRef.value);
   }
@@ -406,11 +640,23 @@ onUnmounted(() => {
 
   // 銷毀圖表實例
   if (chartInstance.value) {
-    chartInstance.value.destroy();
+    try {
+      if (!chartInstance.value.destroyed) {
+        chartInstance.value.destroy();
+      }
+    } catch (error) {
+      console.warn('卸載時銷毀圖表出錯:', error);
+    }
     chartInstance.value = null;
   }
   if (fullscreenChartInstance.value) {
-    fullscreenChartInstance.value.destroy();
+    try {
+      if (!fullscreenChartInstance.value.destroyed) {
+        fullscreenChartInstance.value.destroy();
+      }
+    } catch (error) {
+      console.warn('卸載時銷毀全屏圖表出錯:', error);
+    }
     fullscreenChartInstance.value = null;
   }
 });
@@ -421,11 +667,23 @@ defineExpose({
   resize: resizeChart,
   destroy: () => {
     if (chartInstance.value) {
-      chartInstance.value.destroy();
+      try {
+        if (!chartInstance.value.destroyed) {
+          chartInstance.value.destroy();
+        }
+      } catch (error) {
+        console.warn('外部調用銷毀圖表出錯:', error);
+      }
       chartInstance.value = null;
     }
     if (fullscreenChartInstance.value) {
-      fullscreenChartInstance.value.destroy();
+      try {
+        if (!fullscreenChartInstance.value.destroyed) {
+          fullscreenChartInstance.value.destroy();
+        }
+      } catch (error) {
+        console.warn('外部調用銷毀全屏圖表出錯:', error);
+      }
       fullscreenChartInstance.value = null;
     }
   }
@@ -465,11 +723,40 @@ canvas {
   max-height: 100%;
 }
 
-/* 放大按鈕 */
-.zoom-btn {
+/* 控制欄 */
+.chart-controls {
   position: absolute;
   top: 10px;
   right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+/* 天數選擇下拉選單 */
+.days-select {
+  width: 80px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+:deep(.days-select .el-input__wrapper) {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 1px rgba(102, 126, 234, 0.2) inset;
+}
+
+:deep(.days-select .el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(102, 126, 234, 0.4) inset;
+}
+
+:deep(.days-select .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #667eea inset;
+}
+
+/* 放大按鈕 */
+.zoom-btn {
   width: 36px;
   height: 36px;
   background: rgba(255, 255, 255, 0.95);
@@ -481,7 +768,6 @@ canvas {
   align-items: center;
   justify-content: center;
   transition: all 0.3s ease;
-  z-index: 10;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
@@ -506,12 +792,20 @@ canvas {
 
 /* 移動端優化 */
 @media (max-width: 768px) {
+  .chart-controls {
+    top: 8px;
+    right: 8px;
+    gap: 6px;
+  }
+
+  .days-select {
+    width: 70px;
+  }
+
   .zoom-btn {
     width: 32px;
     height: 32px;
     font-size: 14px;
-    top: 8px;
-    right: 8px;
   }
 
   .fullscreen-chart-container {

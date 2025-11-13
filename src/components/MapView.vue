@@ -3,21 +3,12 @@
     <div id="map" ref="mapContainer"></div>
 
     <!-- Node Drawer -->
-    <NodeDrawer
-      v-model:visible="drawerVisible"
-      :node-id="selectedNode.nodeId"
-      :node-id-hex="selectedNode.nodeIdHex"
-      :node-name="selectedNode.nodeName"
-      :hardware-model-name="selectedNode.hardwareModelName"
-      :has-connection="selectedNode.hasConnection"
-      :latitude="selectedNode.latitude"
-      :longitude="selectedNode.longitude"
-      :battery-level="selectedNode.batteryLevel"
-      :altitude="selectedNode.altitude"
-      :last-connected-time="selectedNode.lastConnectedTime"
-      :fetch-metrics="fetchDeviceMetrics"
-      @close="handleDrawerClose"
-    />
+    <NodeDrawer v-model:visible="drawerVisible" :node-id="selectedNode.nodeId" :node-id-hex="selectedNode.nodeIdHex"
+      :node-name="selectedNode.nodeName" :hardware-model-name="selectedNode.hardwareModelName"
+      :has-connection="selectedNode.hasConnection" :latitude="selectedNode.latitude" :longitude="selectedNode.longitude"
+      :battery-level="selectedNode.batteryLevel" :altitude="selectedNode.altitude"
+      :last-connected-time="selectedNode.lastConnectedTime" :fetch-metrics="fetchDeviceMetrics"
+      @close="handleDrawerClose" />
 
     <!-- 狀態欄 -->
     <div class="status-bar">
@@ -37,21 +28,20 @@
           找到 {{ filteredNodes.length }} 個節點
         </div>
         <div class="results-list">
-          <div
-            v-for="node in filteredNodes"
-            :key="node.node_id"
-            class="result-item"
-          >
+          <div v-for="node in filteredNodes" :key="node.node_id" class="result-item">
             <div class="result-info" @click="selectNode(node.node_id)">
-              <div class="result-name">{{ node.long_name || node.short_name || '未知節點' }}</div>
-              <div class="result-id">{{ node.node_id_hex || node.node_id }}</div>
+              <div class="result-name">
+                <div class="result-short-name"
+                  v-bind:style="{ backgroundColor: '#' + node.node_id_hex.slice(-6), color: isDarkColor('#' + node.node_id_hex.slice(-6)) ? 'white' : 'black' }">
+                  {{ node.short_name }}</div>
+                <div> {{ node.long_name || node.short_name || '未知節點' }}
+                  <div class="result-id">{{ node.node_id_hex || node.node_id }}</div>
+                </div>
+              </div>
+
             </div>
-            <button
-              class="favorite-toggle-btn"
-              :class="{ favorited: isNodeFavorited(node.node_id) }"
-              @click.stop="toggleFavoriteFromSearch(node)"
-              :title="isNodeFavorited(node.node_id) ? '取消收藏' : '加入最愛'"
-            >
+            <button class="favorite-toggle-btn" :class="{ favorited: isNodeFavorited(node.node_id) }"
+              @click.stop="toggleFavoriteFromSearch(node)" :title="isNodeFavorited(node.node_id) ? '取消收藏' : '加入最愛'">
               {{ isNodeFavorited(node.node_id) ? '⭐' : '☆' }}
             </button>
           </div>
@@ -65,13 +55,8 @@
 
       <!-- 搜尋輸入框 -->
       <div class="search-container">
-        <input
-          type="text"
-          v-model="searchQuery"
-          @input="handleSearch"
-          placeholder="搜尋節點 (ID / 名稱)..."
-          class="search-input"
-        />
+        <input type="text" v-model="searchQuery" @input="handleSearch"
+          :placeholder="'搜尋節點 (總節點數: ' + nodes.length + ')'" class="search-input" />
       </div>
     </div>
   </div>
@@ -167,10 +152,10 @@ const handleSearch = () => {
     const longName = String(node.long_name || '').toLowerCase();
 
     return id.includes(query) ||
-           nodeId.includes(query) ||
-           nodeIdHex.includes(query) ||
-           shortName.includes(query) ||
-           longName.includes(query);
+      nodeId.includes(query) ||
+      nodeIdHex.includes(query) ||
+      shortName.includes(query) ||
+      longName.includes(query);
   });
 
   // 限制最多顯示 50 個結果
@@ -192,8 +177,8 @@ const openNodeDrawer = (node) => {
     nodeName: node.long_name || node.short_name || '未知節點',
     hardwareModelName: node.hardware_model_name,
     hasConnection: node.mqtt_connection_state_updated_at !== null &&
-                   node.mqtt_connection_state_updated_at !== undefined &&
-                   node.mqtt_connection_state_updated_at !== '',
+      node.mqtt_connection_state_updated_at !== undefined &&
+      node.mqtt_connection_state_updated_at !== '',
     latitude: lat,
     longitude: lng,
     batteryLevel: node.battery_level,
@@ -246,8 +231,8 @@ const toggleFavoriteFromSearch = (node) => {
       short_name: node.short_name,
       hardware_model_name: node.hardware_model_name,
       hasConnection: node.mqtt_connection_state_updated_at !== null &&
-                     node.mqtt_connection_state_updated_at !== undefined &&
-                     node.mqtt_connection_state_updated_at !== '',
+        node.mqtt_connection_state_updated_at !== undefined &&
+        node.mqtt_connection_state_updated_at !== '',
       latitude: lat,
       longitude: lng,
       battery_level: node.battery_level,
@@ -346,8 +331,8 @@ const renderNodes = () => {
     try {
       // 根據 MQTT 連接狀態決定顏色
       const hasConnection = node.mqtt_connection_state_updated_at !== null &&
-                           node.mqtt_connection_state_updated_at !== undefined &&
-                           node.mqtt_connection_state_updated_at !== '';
+        node.mqtt_connection_state_updated_at !== undefined &&
+        node.mqtt_connection_state_updated_at !== '';
       const markerColor = hasConnection ? '#15b500ff' : '#0015d6ff'; // 綠色：有連接，藍色：無連接
 
       const marker = L.circleMarker([node.latitude, node.longitude], {
@@ -400,6 +385,22 @@ const renderNodes = () => {
   }
 };
 
+const isDarkColor = (hexColor) => {
+  // 去掉 #
+  const c = hexColor.startsWith('#') ? hexColor.slice(1) : hexColor;
+
+  // 解析 RGB
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+
+  // 計算亮度（根據人眼敏感度加權）
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+
+  // 小於 128 → 視為「暗色背景」
+  return luminance < 128;
+};
+
 // 初始化地圖
 onMounted(async () => {
   // 創建地圖實例
@@ -443,12 +444,14 @@ onUnmounted(() => {
 #map {
   width: 100%;
   height: 100%;
-  padding-bottom: 120px; /* 為搜尋欄留出空間 */
+  padding-bottom: 120px;
+  /* 為搜尋欄留出空間 */
 }
 
 @media (min-width: 768px) {
   #map {
-    padding-bottom: 80px; /* 桌面版搜尋欄較矮 */
+    padding-bottom: 80px;
+    /* 桌面版搜尋欄較矮 */
   }
 }
 
@@ -467,7 +470,7 @@ onUnmounted(() => {
   backdrop-filter: blur(10px);
 }
 
-.status-bar > div > div {
+.status-bar>div>div {
   margin: 2px 0;
 }
 
@@ -481,7 +484,7 @@ onUnmounted(() => {
     border-radius: 12px;
   }
 
-  .status-bar > div > div {
+  .status-bar>div>div {
     margin: 4px 0;
   }
 }
@@ -598,6 +601,22 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+}
+
+.result-short-name {
+  border: 1px solid #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 50px;
+  width: 50px;
+  height: 50px;
+  background-color: #667eea;
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+  display: flex;
 }
 
 .result-id {
