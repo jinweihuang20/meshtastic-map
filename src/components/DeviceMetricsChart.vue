@@ -145,10 +145,10 @@ const fetchMetricsFromAPI = async () => {
 
 // 準備標籤數據
 const prepareLabels = () => {
-  return displayMetrics.value.map(m => new Date(m.created_at).toLocaleDateString('zh-TW', {
-    month: 'short',
-    day: 'numeric'
-  }));
+  return displayMetrics.value.map(m => {
+    const date = new Date(m.created_at);
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  });
 };
 
 // 創建數據集
@@ -271,7 +271,24 @@ const createChartOptions = (isFullscreen = false) => {
         bodyFont: { size: fontSize.tooltipBody },
         padding: padding.tooltip,
         displayColors: true,
-        animation: false // 禁用工具提示動畫
+        animation: false, // 禁用工具提示動畫
+        callbacks: {
+          title: (context) => {
+            if (context.length > 0 && context[0].dataIndex !== undefined) {
+              const dataIndex = context[0].dataIndex;
+              if (displayMetrics.value && displayMetrics.value[dataIndex]) {
+                const date = new Date(displayMetrics.value[dataIndex].created_at);
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                const seconds = String(date.getSeconds()).padStart(2, '0');
+                return `${month}/${day} ${hours}:${minutes}:${seconds}`;
+              }
+            }
+            return '';
+          }
+        }
       }
     },
     scales: {
@@ -282,7 +299,7 @@ const createChartOptions = (isFullscreen = false) => {
           minRotation: 45,
           font: { size: fontSize.xAxis },
           maxTicksLimit: isFullscreen ? 15 : 10,
-          color: '#888888'
+          color: '#888888',
         },
         grid: {
           display: isFullscreen,

@@ -465,11 +465,11 @@ const renderNodes = () => {
   console.log(`連接節點: ${connectedCount.value}, 未連接節點: ${disconnectedCount.value}`);
 
   // 如果有節點，調整地圖視圖以顯示所有節點
-  if (validNodes.length > 0) {
-    const bounds = L.latLngBounds(validNodes.map(node => [node.latitude, node.longitude]));
-    map.value.fitBounds(bounds, { padding: [50, 50] });
-    console.log('地圖視圖已調整以顯示所有節點');
-  }
+  // if (validNodes.length > 0) {
+  //   const bounds = L.latLngBounds(validNodes.map(node => [node.latitude, node.longitude]));
+  //   map.value.fitBounds(bounds, { padding: [50, 50] });
+  //   console.log('地圖視圖已調整以顯示所有節點');
+  // }
 };
 
 const isDarkColor = (hexColor) => {

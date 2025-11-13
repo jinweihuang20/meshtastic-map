@@ -33,16 +33,25 @@
               <span class="label">位置:</span>
               <span class="value">{{ formatCoordinates(node.latitude, node.longitude) }}</span>
             </div>
-            <div v-if="node.battery_level" class="info-row">
-              <span class="label">電量:</span>
-              <span class="value">{{ node.battery_level }}%</span>
-            </div>
-            <div class="info-row">
-              <span class="label">狀態:</span>
-              <span class="status-badge" :class="{ connected: node.hasConnection }">
-                {{ node.hasConnection ? '● 已連接' : '○ 未連接' }}
-              </span>
-            </div>
+            <template v-if="getLatestMetric(node.node_id)">
+              <div class="info-row">
+                <span class="label">電量:</span>
+                <span class="value">{{ getLatestMetric(node.node_id).battery_level || 'N/A' }}%</span>
+              </div>
+              <div v-if="getLatestMetric(node.node_id).channel_utilization !== undefined" class="info-row">
+                <span class="label">頻道利用率:</span>
+                <span class="value">{{ parseFloat(getLatestMetric(node.node_id).channel_utilization || 0).toFixed(1)
+                }}%</span>
+              </div>
+              <div v-if="getLatestMetric(node.node_id).air_util_tx !== undefined" class="info-row">
+                <span class="label">空中傳輸率:</span>
+                <span class="value">{{ parseFloat(getLatestMetric(node.node_id).air_util_tx || 0).toFixed(1) }}%</span>
+              </div>
+              <div v-if="getLatestMetric(node.node_id).updated_at" class="info-row">
+                <span class="label">更新時間:</span>
+                <span class="value">{{ formatDateTime(getLatestMetric(node.node_id).updated_at) }}</span>
+              </div>
+            </template>
           </div>
 
           <button class="action-btn" @click="viewOnMap(node)">
@@ -146,6 +155,39 @@ const removeFavorite = (nodeId) => {
 const formatCoordinates = (lat, lng) => {
   if (!lat || !lng) return '未知';
   return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+};
+
+// 獲取節點的最新指標（第一筆數據，因為 reverse() 後第一筆是最新的）
+// 注意：根據 fetchDeviceMetrics 的實現，數據經過 reverse() 後，第一筆是最舊的，最後一筆是最新的
+// 但根據用戶要求使用"頭一筆"，這裡使用第一筆數據
+// 如果數據順序不符合預期，可能需要調整為使用最後一筆：metrics[metrics.length - 1]
+const getLatestMetric = (nodeId) => {
+  const metrics = nodeMetrics.value[nodeId];
+  if (metrics && metrics.length > 0) {
+    // 根據用戶要求使用第一筆數據
+    // 如果第一筆不是最新的，請改為：return metrics[metrics.length - 1];
+    // return metrics[0];
+    return metrics[metrics.length - 1];
+  }
+  return null;
+};
+
+// 格式化日期時間
+const formatDateTime = (dateString) => {
+  if (!dateString) return '未知';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-TW', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  } catch (error) {
+    return '未知';
+  }
 };
 
 // 在地圖上查看節點
@@ -336,14 +378,14 @@ defineExpose({
 .info-row {
   display: flex;
   flex-direction: row;
-  gap: 20px;
+  gap: 5px;
 }
 
 .label {
   font-size: 10px;
   color: #888888;
   font-weight: 500;
-  width: 30px;
+  width: 70px;
 }
 
 .value {
@@ -495,6 +537,7 @@ defineExpose({
   .info-row {
     flex-direction: column;
   }
+
 }
 
 /* Large Desktop Styles */

@@ -96,13 +96,6 @@ const closeMobileMenu = () => {
   letter-spacing: 0.5px;
 }
 
-@media screen and (min-width: 1240px) {
-  .nav-brand h1 {
-    position: relative;
-    left: -250px;
-  }
-}
-
 .nav-menu {
   list-style: none;
   margin: 0;
