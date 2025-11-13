@@ -9,11 +9,7 @@
       <!-- Desktop Menu -->
       <ul class="nav-menu desktop-menu">
         <li v-for="item in menuItems" :key="item.name">
-          <router-link
-            :to="item.path"
-            class="nav-item"
-            :class="{ active: isActive(item.path) }"
-          >
+          <router-link :to="item.path" class="nav-item" :class="{ active: isActive(item.path) }">
             <span class="nav-icon">{{ item.icon }}</span>
             <span class="nav-label">{{ item.label }}</span>
           </router-link>
@@ -32,12 +28,7 @@
     <div class="mobile-menu-overlay" :class="{ open: mobileMenuOpen }" @click="closeMobileMenu"></div>
     <ul class="nav-menu mobile-menu" :class="{ open: mobileMenuOpen }">
       <li v-for="item in menuItems" :key="item.name">
-        <router-link
-          :to="item.path"
-          class="nav-item"
-          :class="{ active: isActive(item.path) }"
-          @click="handleMenuClick"
-        >
+        <router-link :to="item.path" class="nav-item" :class="{ active: isActive(item.path) }" @click="handleMenuClick">
           <span class="nav-icon">{{ item.icon }}</span>
           <span class="nav-label">{{ item.label }}</span>
         </router-link>
@@ -81,7 +72,7 @@ const closeMobileMenu = () => {
   top: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0f0f0f 0%, rgb(72, 161, 103) 100%);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   height: var(--navbar-height, 60px);
   z-index: 1000;
@@ -103,6 +94,13 @@ const closeMobileMenu = () => {
   font-weight: 600;
   color: white;
   letter-spacing: 0.5px;
+}
+
+@media screen and (min-width: 1240px) {
+  .nav-brand h1 {
+    position: relative;
+    left: -250px;
+  }
 }
 
 .nav-menu {
