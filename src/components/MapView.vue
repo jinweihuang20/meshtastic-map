@@ -55,6 +55,9 @@
 
       <!-- 搜尋輸入框 -->
       <div class="search-container">
+        <el-button class="refresh-button" @click="fetchNodes"> <el-icon>
+            <Refresh />
+          </el-icon> </el-button>
         <input type="text" v-model="searchQuery" @input="handleSearch"
           :placeholder="'搜尋節點 (總節點數: ' + nodes.length + ')'" class="search-input" />
       </div>
@@ -67,6 +70,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import NodeDrawer from './NodeDrawer.vue';
+import { Refresh } from '@element-plus/icons-vue';
 
 const mapContainer = ref(null);
 const map = ref(null);
@@ -702,6 +706,15 @@ onUnmounted(() => {
 .search-container {
   max-width: 100%;
   margin: 0 auto;
+  display: flex;
+  flex-direction: row;
+}
+
+.refresh-button {
+  margin-right: 12px;
+  margin-left: 22px;
+  padding: 12px 16px;
+  height: 100%;
 }
 
 .search-input {
@@ -904,6 +917,11 @@ onUnmounted(() => {
   .result-id {
     font-size: 13px;
   }
+
+  .refresh-button {
+    font-size: 21px;
+    margin-left: 0;
+  }
 }
 
 /* 大螢幕優化 */
@@ -919,5 +937,6 @@ onUnmounted(() => {
   .search-input {
     font-size: 17px;
   }
+
 }
 </style>
