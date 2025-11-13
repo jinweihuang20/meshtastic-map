@@ -1,6 +1,6 @@
 <template>
   <el-drawer v-model="drawerVisible" :title="nodeName || '節點詳情'" direction="ltr" :size="drawerSize"
-    :before-close="handleClose" append-to-body>
+    :before-close="handleClose" append-to-body class="dark-drawer">
     <div class="node-drawer-content">
       <!-- 節點基本信息 -->
       <div class="info-section">
@@ -119,8 +119,8 @@ const drawerSize = computed(() => {
 
 const connectionStatus = computed(() => {
   return props.hasConnection
-    ? '<span style="color: #00FF00;">● 已連接 MQTT</span>'
-    : '<span style="color: #3388FF;">○ 未連接 MQTT</span>';
+    ? '<span style="color: rgb(22, 163, 74);">● 已連接 MQTT</span>'
+    : '<span style="color: #3388FF;">● 未連接 MQTT</span>';
 });
 
 const lastConnected = computed(() => {
@@ -218,6 +218,8 @@ const handleClose = (done) => {
 <style scoped>
 .node-drawer-content {
   padding: 0 4px 20px;
+  background: #0f0f0f;
+  min-height: 100%;
 }
 
 .info-section {
@@ -227,10 +229,10 @@ const handleClose = (done) => {
 .section-title {
   font-size: 18px;
   font-weight: 600;
-  color: #2c3e50;
+  color: #e0e0e0;
   margin: 0 0 16px 0;
   padding-bottom: 8px;
-  border-bottom: 2px solid #e9ecef;
+  border-bottom: 2px solid #2a2a2a;
 }
 
 .info-grid {
@@ -243,19 +245,20 @@ const handleClose = (done) => {
   justify-content: space-between;
   align-items: center;
   padding: 10px 12px;
-  background: #f8f9fa;
-  border-radius: 8px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 2px;
 }
 
 .info-label {
   font-size: 14px;
-  color: #7f8c8d;
+  color: #888888;
   font-weight: 500;
 }
 
 .info-value {
   font-size: 14px;
-  color: #2c3e50;
+  color: #e0e0e0;
   font-weight: 600;
   text-align: right;
 }
@@ -264,23 +267,32 @@ const handleClose = (done) => {
   width: 100%;
   padding: 12px 16px;
   margin-top: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border: 1px solid #3a3a3a;
+  border-radius: 2px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .favorite-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  background: #3a3a3a;
+  border-color: #4a4a4a;
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .favorite-btn.favorited {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: rgba(231, 76, 60, 0.15);
+  border-color: rgba(231, 76, 60, 0.3);
+  color: #ff6b6b;
+}
+
+.favorite-btn.favorited:hover {
+  background: rgba(231, 76, 60, 0.25);
+  border-color: rgba(231, 76, 60, 0.5);
 }
 
 .chart-section {
@@ -290,6 +302,9 @@ const handleClose = (done) => {
 .chart-container {
   min-height: 350px;
   position: relative;
+  background: #141414;
+  border-radius: 2px;
+  padding: 12px;
 }
 
 .status-message {
@@ -298,13 +313,14 @@ const handleClose = (done) => {
   align-items: center;
   justify-content: center;
   min-height: 350px;
-  color: #7f8c8d;
+  color: #888888;
   font-size: 14px;
   gap: 12px;
 }
 
 .status-message .el-icon {
   font-size: 32px;
+  color: #888888;
 }
 
 /* 移動端優化 */
@@ -322,5 +338,67 @@ const handleClose = (done) => {
   .info-value {
     text-align: left;
   }
+}
+</style>
+
+<style>
+/* 全局 Drawer 深色模式樣式 - 不使用 scoped 以確保覆蓋 Element Plus 默認樣式 */
+/* 使用更高優先級選擇器 */
+body .el-drawer.dark-drawer,
+.el-drawer.dark-drawer {
+  background: #0f0f0f !important;
+  color: #e0e0e0 !important;
+}
+
+body .el-drawer.dark-drawer .el-drawer__header,
+.el-drawer.dark-drawer .el-drawer__header {
+  background: #1a1a1a !important;
+  border-bottom: 1px solid #2a2a2a !important;
+  padding: 20px !important;
+  padding-top: calc(var(--navbar-height, 60px) + 20px) !important;
+  min-height: calc(var(--navbar-height, 60px) + 60px);
+  margin-bottom: 0 !important;
+}
+
+body .el-drawer.dark-drawer .el-drawer__title,
+.el-drawer.dark-drawer .el-drawer__title {
+  color: #e0e0e0 !important;
+  font-weight: 600;
+}
+
+body .el-drawer.dark-drawer .el-drawer__headerbtn,
+.el-drawer.dark-drawer .el-drawer__headerbtn {
+  top: calc(var(--navbar-height, 60px) + 20px) !important;
+  right: 20px !important;
+  width: 40px;
+  height: 40px;
+}
+
+body .el-drawer.dark-drawer .el-drawer__close,
+.el-drawer.dark-drawer .el-drawer__close {
+  color: #888888 !important;
+  font-size: 20px;
+}
+
+body .el-drawer.dark-drawer .el-drawer__close:hover,
+.el-drawer.dark-drawer .el-drawer__close:hover {
+  color: #e0e0e0 !important;
+}
+
+body .el-drawer.dark-drawer .el-drawer__body,
+.el-drawer.dark-drawer .el-drawer__body {
+  background: #0f0f0f !important;
+  padding: 0 !important;
+  color: #e0e0e0 !important;
+}
+
+body .el-drawer.dark-drawer .el-drawer__mask,
+.el-drawer.dark-drawer .el-drawer__mask {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+body .el-drawer.dark-drawer,
+.el-drawer.dark-drawer {
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3) !important;
 }
 </style>
