@@ -209,7 +209,7 @@ const closeMobileMenu = () => {
   width: 250px;
   max-width: 80%;
   height: calc(100vh - var(--navbar-height, 60px));
-  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+  background: white;
   flex-direction: column;
   gap: 0;
   transform: translateX(100%);
@@ -218,6 +218,10 @@ const closeMobileMenu = () => {
   padding: 20px 0;
   overflow-y: auto;
   box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+}
+
+.mobile-menu .nav-item .nav-label {
+  color: black !important;
 }
 
 .mobile-menu.open {
