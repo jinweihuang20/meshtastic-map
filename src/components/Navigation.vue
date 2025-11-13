@@ -4,6 +4,7 @@
       <!-- Logo / Brand -->
       <div class="nav-brand">
         <h1>Meshtastic Map</h1>
+        <h6 style="color:white; letter-spacing: 2px;">Powered by GW-Tech</h6>
       </div>
 
       <!-- Desktop Menu -->
@@ -72,7 +73,7 @@ const closeMobileMenu = () => {
   top: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(135deg, #0f0f0f 0%, rgb(72, 161, 103) 100%);
+  background: linear-gradient(135deg, rgb(43, 107, 66) 0%, rgb(72, 161, 103) 100%);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   height: var(--navbar-height, 60px);
   z-index: 1000;
