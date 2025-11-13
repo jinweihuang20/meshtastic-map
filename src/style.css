@@ -38,6 +38,10 @@ body {
   min-width: 320px;
   min-height: 100vh;
   overflow-x: hidden;
+  /* 禁止縮放 */
+  touch-action: pan-x pan-y;
+  -ms-touch-action: pan-x pan-y;
+  -webkit-tap-highlight-color: transparent;
 }
 
 h1 {

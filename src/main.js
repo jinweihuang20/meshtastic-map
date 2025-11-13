@@ -6,6 +6,73 @@ import 'element-plus/dist/index.css'
 import App from './App.vue'
 import router from './router'
 
+// 禁止縮放功能
+const disableZoom = () => {
+    // 禁止雙擊縮放
+    let lastTouchEnd = 0
+    document.addEventListener('touchend', (event) => {
+        const now = Date.now()
+        if (now - lastTouchEnd <= 300) {
+            event.preventDefault()
+        }
+        lastTouchEnd = now
+    }, false)
+
+    // 禁止手勢縮放（雙指縮放）
+    document.addEventListener('gesturestart', (e) => {
+        e.preventDefault()
+    })
+
+    document.addEventListener('gesturechange', (e) => {
+        e.preventDefault()
+    })
+
+    document.addEventListener('gestureend', (e) => {
+        e.preventDefault()
+    })
+
+    // 禁止 Ctrl + 滾輪縮放
+    document.addEventListener('wheel', (e) => {
+        if (e.ctrlKey) {
+            e.preventDefault()
+        }
+    }, { passive: false })
+
+    // 禁止 Ctrl + +/- 縮放
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '=' || e.keyCode === 187 || e.keyCode === 189)) {
+            e.preventDefault()
+        }
+        // 禁止 Ctrl + 0 重置縮放
+        if ((e.ctrlKey || e.metaKey) && (e.key === '0' || e.keyCode === 48)) {
+            e.preventDefault()
+        }
+    })
+
+    // 禁止雙擊縮放（移動端）
+    let lastTap = 0
+    document.addEventListener('touchstart', (e) => {
+        const now = Date.now()
+        if (now - lastTap < 300) {
+            e.preventDefault()
+        }
+        lastTap = now
+    }, { passive: false })
+
+    // 設置 meta viewport（動態設置以確保生效）
+    const viewport = document.querySelector('meta[name="viewport"]')
+    if (viewport) {
+        viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no')
+    }
+}
+
+// 在 DOM 加載完成後執行
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', disableZoom)
+} else {
+    disableZoom()
+}
+
 const app = createApp(App)
 
 app.use(router)

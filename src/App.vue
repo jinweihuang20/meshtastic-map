@@ -39,6 +39,16 @@ html, body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 禁止縮放 */
+  touch-action: pan-x pan-y;
+  -ms-touch-action: pan-x pan-y;
+  /* 禁止文本選擇（可選，如果需要允許文本選擇可以移除） */
+  /* -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none; */
+  /* 禁止雙擊縮放高亮 */
+  -webkit-tap-highlight-color: transparent;
 }
 
 #app {
