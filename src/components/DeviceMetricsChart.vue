@@ -165,7 +165,7 @@ const createDatasets = (isFullscreen = false) => {
       label: '電池電量 (%)',
       data: batteryData,
       borderColor: 'rgb(59, 130, 246)',
-      backgroundColor: 'rgba(76, 175, 80, 0.1)',
+      backgroundColor: 'rgb(59, 130, 246)',
       yAxisID: 'y',
       tension: 0, // 非圓滑模式
       pointRadius: 0, // 不顯示點
@@ -213,7 +213,7 @@ const createDatasets = (isFullscreen = false) => {
 // 創建圖表配置選項
 const createChartOptions = (isFullscreen = false) => {
   const fontSize = {
-    legend: isFullscreen ? 14 : 10,
+    legend: isFullscreen ? 12 : 8,
     title: isFullscreen ? 18 : 14,
     tooltipTitle: isFullscreen ? 14 : 12,
     tooltipBody: isFullscreen ? 13 : 11,
@@ -298,12 +298,11 @@ const createChartOptions = (isFullscreen = false) => {
           maxRotation: 45,
           minRotation: 45,
           font: { size: fontSize.xAxis },
-          maxTicksLimit: isFullscreen ? 15 : 10,
+          maxTicksLimit: 20,
           color: '#888888',
         },
         grid: {
-          display: isFullscreen,
-          color: isFullscreen ? 'rgba(255, 255, 255, 0.05)' : undefined
+          color: 'rgba(255, 255, 255, 0.05)'
         }
       },
       y: {

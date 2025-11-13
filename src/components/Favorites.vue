@@ -49,7 +49,8 @@
               </div>
               <div v-if="getLatestMetric(node.node_id).updated_at" class="info-row">
                 <span class="label">更新時間:</span>
-                <span class="value">{{ formatDateTime(getLatestMetric(node.node_id).updated_at) }}</span>
+                <span class="value">{{ formatDateTime(getLatestMetric(node.node_id).updated_at) }} ({{
+                  getRelativeTime(getLatestMetric(node.node_id).updated_at) }})</span>
               </div>
             </template>
           </div>
@@ -190,6 +191,38 @@ const formatDateTime = (dateString) => {
   }
 };
 
+// 計算相對時間（距離當前多久）
+const getRelativeTime = (dateString) => {
+  if (!dateString) return '未知';
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSeconds = Math.floor(diffMs / 1000);
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    const diffMonths = Math.floor(diffDays / 30);
+    const diffYears = Math.floor(diffDays / 365);
+
+    if (diffSeconds < 60) {
+      return '剛剛';
+    } else if (diffMinutes < 60) {
+      return `${diffMinutes}分鐘前`;
+    } else if (diffHours < 24) {
+      return `${diffHours}小時前`;
+    } else if (diffDays < 30) {
+      return `${diffDays}天前`;
+    } else if (diffMonths < 12) {
+      return `${diffMonths}個月前`;
+    } else {
+      return `${diffYears}年前`;
+    }
+  } catch (error) {
+    return '未知';
+  }
+};
+
 // 在地圖上查看節點
 const viewOnMap = (node) => {
   emit('view-on-map', node);
@@ -292,9 +325,8 @@ defineExpose({
 
 .favorite-item {
   background: #353535;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  border: 1px solid #2a2a2a;
+  border-radius: 2px;
+  border: 1px solid #888888;
   overflow: visible;
   transition: all 0.2s ease;
   display: flex;
@@ -307,12 +339,6 @@ defineExpose({
   /* 防止意外觸發縮放 */
   -webkit-user-select: none;
   user-select: none;
-}
-
-.favorite-item:hover {
-  border-color: #3a3a3a;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  transform: translateY(-2px);
 }
 
 /* 節點信息區 - 左側 */
@@ -510,20 +536,14 @@ defineExpose({
 
   .favorite-item {
     flex-direction: row;
-    border-radius: 12px;
-    border-bottom: none;
+    border-radius: 2px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .favorite-item:hover {
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
   }
 
   .node-info-section {
     flex: 0 0 350px;
     padding: 20px;
     border-right: 1px solid #2a2a2a;
-    border-radius: 12px 0 0 12px;
   }
 
   .node-name {
