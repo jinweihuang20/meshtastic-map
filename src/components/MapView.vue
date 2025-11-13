@@ -68,6 +68,9 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import 'leaflet.markercluster';
 import NodeDrawer from './NodeDrawer.vue';
 import { Refresh } from '@element-plus/icons-vue';
 
@@ -76,6 +79,7 @@ const map = ref(null);
 const nodes = ref([]);
 const loading = ref(true);
 const markers = ref([]);
+const markerClusterGroup = ref(null); // MarkerClusterGroup 實例
 const connectedCount = ref(0);
 const disconnectedCount = ref(0);
 
@@ -377,9 +381,21 @@ const renderNodes = () => {
     return;
   }
 
+  // 清除現有的 MarkerClusterGroup
+  if (markerClusterGroup.value) {
+    map.value.removeLayer(markerClusterGroup.value);
+    markerClusterGroup.value.clearLayers();
+    markerClusterGroup.value = null;
+  }
+
   // 清除現有標記
-  markers.value.forEach(marker => marker.remove());
+  markers.value.forEach(marker => {
+    if (marker.remove) {
+      marker.remove();
+    }
+  });
   markers.value = [];
+  nodeMarkerMap.value.clear();
 
   console.log('開始過濾節點，總節點數:', nodes.value.length);
 
@@ -420,6 +436,36 @@ const renderNodes = () => {
     })));
   }
 
+  // 創建 MarkerClusterGroup
+  markerClusterGroup.value = L.markerClusterGroup({
+    chunkedLoading: true,
+    maxClusterRadius: 80, // 聚類半徑（像素），值越大聚合越積極
+    disableClusteringAtZoom: 8, // 在縮放級別 15 及以上時禁用聚類，直接顯示所有標記（街道級別）
+    spiderfyOnMaxZoom: true, // 在最大縮放級別時展開
+    showCoverageOnHover: false, // 懸停時顯示覆蓋範圍
+    zoomToBoundsOnClick: true, // 點擊時縮放到邊界
+    removeOutsideVisibleBounds: true, // 移除可見範圍外的標記以提升性能
+    iconCreateFunction: function (cluster) {
+      const count = cluster.getChildCount();
+      let backgroundColor;
+
+      // 根據數量設定背景顏色
+      if (count >= 1 && count <= 50) {
+        backgroundColor = 'rgba(22, 163, 74, 0.8)'; // 綠色
+      } else if (count > 50 && count <= 100) {
+        backgroundColor = 'rgba(220, 38, 38, 0.8)'; // 紅色
+      } else {
+        backgroundColor = 'rgba(249, 115, 22, 0.8)'; // 橘色
+      }
+
+      return L.divIcon({
+        html: `<div style="background-color: ${backgroundColor}; color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${count}</div>`,
+        className: 'marker-cluster',
+        iconSize: L.point(40, 40)
+      });
+    }
+  });
+
   // 為每個節點創建標記
   validNodes.forEach((node, index) => {
     try {
@@ -443,7 +489,8 @@ const renderNodes = () => {
         openNodeDrawer(node);
       });
 
-      marker.addTo(map.value);
+      // 將標記添加到 MarkerClusterGroup
+      markerClusterGroup.value.addLayer(marker);
       markers.value.push(marker);
 
       // 保存 node_id 到 marker 的映射，用於搜尋定位
@@ -458,6 +505,9 @@ const renderNodes = () => {
       console.error('創建標記時出錯:', error, node);
     }
   });
+
+  // 將 MarkerClusterGroup 添加到地圖
+  markerClusterGroup.value.addTo(map.value);
 
   console.log('標記添加完成，總標記數:', markers.value.length);
 
@@ -615,6 +665,13 @@ onUnmounted(() => {
     // 移除事件監聽器
     map.value.off('moveend');
     map.value.off('zoomend');
+
+    // 清理 MarkerClusterGroup
+    if (markerClusterGroup.value) {
+      map.value.removeLayer(markerClusterGroup.value);
+      markerClusterGroup.value.clearLayers();
+      markerClusterGroup.value = null;
+    }
 
     // 清理地圖
     map.value.remove();
