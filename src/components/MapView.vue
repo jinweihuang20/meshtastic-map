@@ -158,10 +158,9 @@ const handleSearch = () => {
       longName.includes(query);
   });
 
-  // 限制最多顯示 50 個結果
-  if (filteredNodes.value.length > 50) {
-    filteredNodes.value = filteredNodes.value.slice(0, 50);
-  }
+  filteredNodes.value = filteredNodes.value.sort((a, b) => {
+    return a.long_name.localeCompare(b.long_name);
+  });
 
   console.log(`搜尋 "${query}" 找到 ${filteredNodes.value.length} 個節點`);
 };
