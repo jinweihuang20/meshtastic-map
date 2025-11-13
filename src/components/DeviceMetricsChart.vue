@@ -18,12 +18,18 @@
     </div>
 
     <!-- 全屏模式對話框 -->
-    <el-dialog v-model="fullscreenVisible" :title="`${nodeId} - 設備指標趨勢`" :width="dialogWidth" :fullscreen="isMobile"
-      @close="closeFullscreen" @opened="() => { setTimeout(() => resizeFullscreenChart(), 100); }">
+    <el-drawer v-model="fullscreenVisible" direction="btt" :title="`${nodeId} - 設備指標趨勢`" append-to-body
+      :width="dialogWidth" size="70%" @close="closeFullscreen" @opened="() => {
+        setTimeout(() => {
+          if (fullscreenChartInstance.value && !fullscreenChartInstance.value.destroyed) {
+            resizeFullscreenChart();
+          }
+        }, 150);
+      }">
       <div class="fullscreen-chart-container">
         <canvas :id="fullscreenCanvasId" ref="fullscreenCanvas"></canvas>
       </div>
-    </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
@@ -248,14 +254,16 @@ const createChartOptions = (isFullscreen = false) => {
         labels: {
           font: { size: fontSize.legend },
           usePointStyle: true,
-          padding: padding.legend
+          padding: padding.legend,
+          color: '#e0e0e0'
         }
       },
       title: {
         display: true,
         text: '設備指標趨勢',
         font: { size: fontSize.title, weight: 'bold' },
-        padding: padding.title
+        padding: padding.title,
+        color: '#e0e0e0'
       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -273,11 +281,12 @@ const createChartOptions = (isFullscreen = false) => {
           maxRotation: 45,
           minRotation: 45,
           font: { size: fontSize.xAxis },
-          maxTicksLimit: isFullscreen ? 15 : 10
+          maxTicksLimit: isFullscreen ? 15 : 10,
+          color: '#888888'
         },
         grid: {
           display: isFullscreen,
-          color: isFullscreen ? 'rgba(0, 0, 0, 0.05)' : undefined
+          color: isFullscreen ? 'rgba(255, 255, 255, 0.05)' : undefined
         }
       },
       y: {
@@ -287,7 +296,11 @@ const createChartOptions = (isFullscreen = false) => {
         min: 0,
         max: isFullscreen ? 100 : 110,
         ticks: {
-          font: { size: fontSize.yAxisTicks }
+          font: { size: fontSize.yAxisTicks },
+          color: '#888888'
+        },
+        grid: {
+          color: 'rgba(255, 255, 255, 0.05)'
         }
       },
     }
@@ -473,10 +486,21 @@ const createFullscreenChart = () => {
     fullscreenChartInstance.value = null;
   }
 
-  // 等待一小段時間確保舊圖表完全銷毀
+  // 等待一小段時間確保舊圖表完全銷毀和 DOM 更新
   setTimeout(() => {
     if (!fullscreenCanvas.value || !document.contains(fullscreenCanvas.value)) {
       return;
+    }
+
+    // 確保 canvas 有正確的尺寸
+    const container = fullscreenCanvas.value.parentElement;
+    if (container) {
+      const containerHeight = container.clientHeight;
+      const containerWidth = container.clientWidth;
+      if (containerHeight > 0 && containerWidth > 0) {
+        fullscreenCanvas.value.style.width = `${containerWidth}px`;
+        fullscreenCanvas.value.style.height = `${containerHeight}px`;
+      }
     }
 
     // createChartInstance 內部會處理 canvas 上可能存在的其他圖表實例
@@ -490,7 +514,7 @@ const createFullscreenChart = () => {
         }
       });
     }
-  }, 100);
+  }, 150);
 };
 
 // 調整圖表大小
@@ -523,13 +547,16 @@ const openFullscreen = async () => {
     await fetchMetricsFromAPI();
   }
   // 等待 DOM 更新後創建圖表
+  await nextTick();
   setTimeout(() => {
     createFullscreenChart();
     // 確保圖表正確調整大小
     setTimeout(() => {
-      resizeFullscreenChart();
-    }, 50);
-  }, 100);
+      if (fullscreenChartInstance.value && !fullscreenChartInstance.value.destroyed) {
+        resizeFullscreenChart();
+      }
+    }, 100);
+  }, 200);
 };
 
 // 關閉全屏模式
@@ -719,7 +746,7 @@ defineExpose({
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #999;
+  color: #666666;
   font-size: 14px;
   text-align: center;
   padding: 20px;
@@ -751,44 +778,54 @@ canvas {
 /* 天數選擇下拉選單 */
 .days-select {
   width: 80px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(26, 26, 26, 0.95);
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 :deep(.days-select .el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 0 0 1px rgba(102, 126, 234, 0.2) inset;
+  background: rgba(26, 26, 26, 0.95);
+  box-shadow: 0 0 0 1px rgba(58, 58, 58, 0.5) inset;
+}
+
+:deep(.days-select .el-input__inner) {
+  color: #e0e0e0;
 }
 
 :deep(.days-select .el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px rgba(102, 126, 234, 0.4) inset;
+  box-shadow: 0 0 0 1px rgba(78, 78, 78, 0.7) inset;
 }
 
 :deep(.days-select .el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #667eea inset;
+  box-shadow: 0 0 0 1px #4a4a4a inset;
+}
+
+:deep(.days-select .el-select__caret) {
+  color: #888888;
 }
 
 /* 放大按鈕 */
 .zoom-btn {
   width: 36px;
   height: 36px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #667eea;
+  background: rgba(26, 26, 26, 0.95);
+  border: 1px solid #3a3a3a;
   border-radius: 50%;
   cursor: pointer;
   font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  color: #e0e0e0;
 }
 
 .zoom-btn:hover {
-  background: #667eea;
+  background: #3a3a3a;
+  border-color: #4a4a4a;
   transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .zoom-btn:active {
@@ -798,10 +835,58 @@ canvas {
 /* 全屏圖表容器 */
 .fullscreen-chart-container {
   width: 100%;
-  height: 70vh;
+  height: 80vh;
   min-height: 400px;
   position: relative;
   padding: 10px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: #141414;
+}
+
+.fullscreen-chart-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* 全屏對話框樣式 */
+:deep(.el-dialog) {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+}
+
+:deep(.el-dialog__header) {
+  background: #1a1a1a;
+  border-bottom: 1px solid #2a2a2a;
+  padding: 20px;
+}
+
+:deep(.el-dialog__title) {
+  color: #e0e0e0;
+  font-weight: 600;
+}
+
+:deep(.el-dialog__headerbtn) {
+  top: 20px;
+  right: 20px;
+}
+
+:deep(.el-dialog__close) {
+  color: #888888;
+  font-size: 20px;
+}
+
+:deep(.el-dialog__close:hover) {
+  color: #e0e0e0;
+}
+
+:deep(.el-dialog__body) {
+  padding: 0;
+  background: #1a1a1a;
+  overflow: hidden;
 }
 
 /* 移動端優化 */
@@ -823,7 +908,7 @@ canvas {
   }
 
   .fullscreen-chart-container {
-    height: 60vh;
+    height: 50vh;
     min-height: 300px;
     padding: 5px;
   }
@@ -832,7 +917,7 @@ canvas {
 /* 平板優化 */
 @media (min-width: 768px) and (max-width: 1024px) {
   .fullscreen-chart-container {
-    height: 65vh;
+    height: 50vh;
     min-height: 450px;
   }
 }
@@ -840,7 +925,7 @@ canvas {
 /* 大屏優化 */
 @media (min-width: 1024px) {
   .fullscreen-chart-container {
-    height: 75vh;
+    height: 50vh;
     min-height: 500px;
   }
 }

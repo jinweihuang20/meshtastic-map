@@ -176,7 +176,7 @@ defineExpose({
   padding-left: 16px;
   padding-right: 16px;
   padding-bottom: 16px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: #0f0f0f;
   box-sizing: border-box;
   position: relative;
 }
@@ -204,28 +204,31 @@ defineExpose({
 .empty-state {
   text-align: center;
   padding: 60px 16px;
-  background: white;
-  border-radius: 0;
+  background: #1a1a1a;
+  border-radius: 12px;
   box-shadow: none;
   margin: 0 auto;
   max-width: 100%;
+  border: 1px solid #2a2a2a;
 }
 
 .empty-icon {
   font-size: 60px;
   margin-bottom: 16px;
-  opacity: 0.5;
+  opacity: 0.6;
+  filter: brightness(0.9);
 }
 
 .empty-state h3 {
   margin: 0 0 8px 0;
   font-size: 20px;
-  color: #2c3e50;
+  color: #e0e0e0;
+  font-weight: 600;
 }
 
 .empty-state p {
   margin: 0;
-  color: #7f8c8d;
+  color: #888888;
   font-size: 14px;
 }
 
@@ -238,26 +241,29 @@ defineExpose({
 }
 
 .favorite-item {
-  background: white;
-  border-radius: 0;
-  box-shadow: none;
-  border-bottom: 8px solid #e9ecef;
+  background: #353535;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid #2a2a2a;
   overflow: visible;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
   width: 100%;
   position: relative;
+  margin-bottom: 10px;
 }
 
 .favorite-item:hover {
-  box-shadow: none;
+  border-color: #3a3a3a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
 }
 
 /* 節點信息區 - 左側 */
 .node-info-section {
   padding: 12px;
-  background: white;
+  background: #1a1a1a;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -268,15 +274,17 @@ defineExpose({
   justify-content: space-between;
   align-items: center;
   padding-bottom: 8px;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid #2a2a2a;
 }
 
 .node-name {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
-  color: #2c3e50;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: #e0e0e0;
+  font-weight: 600;
 }
 
 .node-icon {
@@ -284,12 +292,12 @@ defineExpose({
 }
 
 .remove-btn {
-  background: rgba(231, 76, 60, 0.1);
-  border: none;
-  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.15);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  color: #ff6b6b;
   height: 28px;
   padding: 0 10px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 11px;
   display: flex;
@@ -297,11 +305,13 @@ defineExpose({
   justify-content: center;
   transition: all 0.2s ease;
   white-space: nowrap;
+  font-weight: 500;
 }
 
 .remove-btn:hover {
-  background: rgba(231, 76, 60, 0.2);
-  transform: scale(1.1);
+  background: rgba(231, 76, 60, 0.25);
+  border-color: rgba(231, 76, 60, 0.5);
+  transform: scale(1.05);
 }
 
 .node-details {
@@ -318,66 +328,72 @@ defineExpose({
 
 .label {
   font-size: 10px;
-  color: #7f8c8d;
+  color: #888888;
   font-weight: 500;
   width: 30px;
 }
 
 .value {
   font-size: 12px;
-  color: #2c3e50;
-  font-weight: 600;
+  color: #e0e0e0;
+  font-weight: 500;
   word-break: break-all;
 }
 
 .status-badge {
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: 4px 10px;
+  border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
-  background: #3498db;
-  color: white;
+  background: #2a4a6a;
+  color: #7db3e8;
   display: inline-block;
+  border: 1px solid rgba(125, 179, 232, 0.2);
 }
 
 .status-badge.connected {
-  background: #2ecc71;
+  background: #1a4a2a;
+  color: #7de8a3;
+  border-color: rgba(125, 232, 163, 0.2);
 }
 
 .action-btn {
   width: 100%;
-  padding: 8px 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 6px;
+  padding: 10px 12px;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  background: #3a3a3a;
+  border-color: #4a4a4a;
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 /* 圖表區 - 右側 */
 .chart-section {
   padding: 12px;
-  background: #f8f9fa;
+  background: #141414;
   height: 280px;
   min-height: 280px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 0 0 12px 12px;
 }
 
 .chart-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #7f8c8d;
+  color: #666666;
   font-size: 12px;
 }
 
@@ -406,7 +422,8 @@ defineExpose({
   .empty-state {
     padding: 80px 20px;
     border-radius: 16px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    border: 1px solid #2a2a2a;
     max-width: 500px;
     margin: 0 auto;
   }
@@ -432,17 +449,18 @@ defineExpose({
     flex-direction: row;
     border-radius: 12px;
     border-bottom: none;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 
   .favorite-item:hover {
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
   }
 
   .node-info-section {
     flex: 0 0 350px;
     padding: 20px;
-    border-right: 2px solid #e9ecef;
+    border-right: 1px solid #2a2a2a;
+    border-radius: 12px 0 0 12px;
   }
 
   .node-name {
@@ -458,6 +476,7 @@ defineExpose({
     padding: 20px;
     height: 350px;
     min-height: 350px;
+    border-radius: 0 12px 12px 0;
   }
 
   .info-row {
