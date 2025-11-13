@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import NodeDrawer from './NodeDrawer.vue';
@@ -96,6 +96,8 @@ const searchQuery = ref('');
 const filteredNodes = ref([]);
 const selectedNodeId = ref('');
 const nodeMarkerMap = ref(new Map()); // 存儲 node_id 到 marker 的映射
+let searchTimeout = null; // 防抖計時器
+let searchAbortController = null; // 用於取消正在進行的搜索
 
 // 收藏相關
 const favorites = ref([]);
@@ -133,36 +135,122 @@ const fetchDeviceMetrics = async (nodeId) => {
   }
 };
 
-// 搜尋處理
-const handleSearch = () => {
-  const query = searchQuery.value.toLowerCase().trim();
+// 優化的節點過濾函數（預處理節點數據以提升性能）
+const preprocessNodeForSearch = (node) => {
+  // 預處理並緩存搜索相關的字符串，避免重複轉換
+  if (!node._searchCache) {
+    node._searchCache = {
+      id: String(node.id || '').toLowerCase(),
+      nodeId: String(node.node_id || '').toLowerCase(),
+      nodeIdHex: String(node.node_id_hex || '').toLowerCase(),
+      shortName: String(node.short_name || '').toLowerCase(),
+      longName: String(node.long_name || '').toLowerCase()
+    };
+  }
+  return node._searchCache;
+};
 
+// 實際執行搜索的函數
+const performSearch = async (query) => {
+  // 取消之前的搜索（如果還在進行）
+  if (searchAbortController) {
+    searchAbortController.abort();
+  }
+  searchAbortController = new AbortController();
+
+  // 如果查詢為空，立即清空結果
   if (!query) {
     filteredNodes.value = [];
     selectedNodeId.value = '';
     return;
   }
 
-  // 過濾節點：比對 id, node_id, short_name, long_name
-  filteredNodes.value = nodes.value.filter(node => {
-    const id = String(node.id || '').toLowerCase();
-    const nodeId = String(node.node_id || '').toLowerCase();
-    const nodeIdHex = String(node.node_id_hex || '').toLowerCase();
-    const shortName = String(node.short_name || '').toLowerCase();
-    const longName = String(node.long_name || '').toLowerCase();
+  const queryLower = query.toLowerCase();
+  const results = [];
 
-    return id.includes(query) ||
-      nodeId.includes(query) ||
-      nodeIdHex.includes(query) ||
-      shortName.includes(query) ||
-      longName.includes(query);
-  });
+  // 使用 requestIdleCallback 或 setTimeout 將搜索推遲到下一個事件循環
+  // 這樣可以讓 UI 先響應用戶輸入
+  await nextTick();
 
-  filteredNodes.value = filteredNodes.value.sort((a, b) => {
-    return a.long_name.localeCompare(b.long_name);
-  });
+  // 檢查是否已被取消
+  if (searchAbortController.signal.aborted) {
+    return;
+  }
 
-  console.log(`搜尋 "${query}" 找到 ${filteredNodes.value.length} 個節點`);
+  // 分批處理節點，避免長時間阻塞主線程
+  const batchSize = 100;
+  const totalNodes = nodes.value.length;
+
+  for (let i = 0; i < totalNodes; i += batchSize) {
+    // 檢查是否已被取消
+    if (searchAbortController.signal.aborted) {
+      return;
+    }
+
+    const batch = nodes.value.slice(i, i + batchSize);
+
+    for (const node of batch) {
+      const cache = preprocessNodeForSearch(node);
+
+      // 快速匹配檢查
+      if (cache.id.includes(queryLower) ||
+        cache.nodeId.includes(queryLower) ||
+        cache.nodeIdHex.includes(queryLower) ||
+        cache.shortName.includes(queryLower) ||
+        cache.longName.includes(queryLower)) {
+        results.push(node);
+      }
+    }
+
+    // 每處理一批後，讓出控制權給瀏覽器，避免阻塞 UI
+    if (i + batchSize < totalNodes) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  }
+
+  // 檢查是否已被取消
+  if (searchAbortController.signal.aborted) {
+    return;
+  }
+
+  // 排序結果（只在有結果時才排序）
+  if (results.length > 0) {
+    // 使用更高效的排序方式
+    results.sort((a, b) => {
+      const aName = a.long_name || a.short_name || '';
+      const bName = b.long_name || b.short_name || '';
+      return aName.localeCompare(bName);
+    });
+  }
+
+  // 更新結果
+  filteredNodes.value = results;
+  console.log(`搜尋 "${query}" 找到 ${results.length} 個節點`);
+};
+
+// 搜尋處理（帶防抖）
+const handleSearch = () => {
+  const query = searchQuery.value.trim();
+
+  // 清除之前的計時器
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+
+  // 如果查詢為空，立即清空結果（不需要防抖）
+  if (!query) {
+    filteredNodes.value = [];
+    selectedNodeId.value = '';
+    if (searchAbortController) {
+      searchAbortController.abort();
+    }
+    return;
+  }
+
+  // 設置防抖：等待用戶停止輸入 300ms 後才執行搜索
+  searchTimeout = setTimeout(() => {
+    performSearch(query);
+  }, 300);
 };
 
 // 打開節點 drawer
@@ -422,9 +510,27 @@ onMounted(async () => {
 
 // 清理
 onUnmounted(() => {
+  // 清除搜索計時器
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+
+  // 取消正在進行的搜索
+  if (searchAbortController) {
+    searchAbortController.abort();
+  }
+
+  // 清理地圖
   if (map.value) {
     map.value.remove();
   }
+
+  // 清理節點的搜索緩存
+  nodes.value.forEach(node => {
+    if (node._searchCache) {
+      delete node._searchCache;
+    }
+  });
 });
 </script>
 

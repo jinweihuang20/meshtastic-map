@@ -225,6 +225,19 @@ const createChartOptions = (isFullscreen = false) => {
   return {
     responsive: true,
     maintainAspectRatio: false,
+    animation: false, // 禁用所有動畫
+    transitions: {
+      active: {
+        animation: {
+          duration: 0
+        }
+      },
+      resize: {
+        animation: {
+          duration: 0
+        }
+      }
+    },
     interaction: {
       mode: 'index',
       intersect: false,
@@ -249,7 +262,8 @@ const createChartOptions = (isFullscreen = false) => {
         titleFont: { size: fontSize.tooltipTitle },
         bodyFont: { size: fontSize.tooltipBody },
         padding: padding.tooltip,
-        displayColors: true
+        displayColors: true,
+        animation: false // 禁用工具提示動畫
       }
     },
     scales: {
