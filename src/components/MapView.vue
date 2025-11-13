@@ -102,6 +102,10 @@ let searchAbortController = null; // 用於取消正在進行的搜索
 // 收藏相關
 const favorites = ref([]);
 
+// 地圖狀態保存相關
+const MAP_STATE_KEY = 'meshtastic_map_state';
+let mapStateSaveTimeout = null; // 防抖計時器
+
 // 從 API 獲取節點數據
 const fetchNodes = async () => {
   try {
@@ -488,10 +492,63 @@ const isDarkColor = (hexColor) => {
   return luminance < 128;
 };
 
+// 保存地圖狀態到 localStorage（帶防抖）
+const saveMapState = () => {
+  if (!map.value) return;
+
+  // 清除之前的計時器
+  if (mapStateSaveTimeout) {
+    clearTimeout(mapStateSaveTimeout);
+  }
+
+  // 設置防抖：等待 500ms 後才保存
+  mapStateSaveTimeout = setTimeout(() => {
+    try {
+      const center = map.value.getCenter();
+      const zoom = map.value.getZoom();
+      const mapState = {
+        center: {
+          lat: center.lat,
+          lng: center.lng
+        },
+        zoom: zoom
+      };
+      localStorage.setItem(MAP_STATE_KEY, JSON.stringify(mapState));
+      console.log('地圖狀態已保存:', mapState);
+    } catch (error) {
+      console.error('保存地圖狀態失敗:', error);
+    }
+  }, 500);
+};
+
+// 從 localStorage 讀取地圖狀態
+const loadMapState = () => {
+  try {
+    const stored = localStorage.getItem(MAP_STATE_KEY);
+    if (stored) {
+      const mapState = JSON.parse(stored);
+      if (mapState.center && mapState.zoom !== undefined) {
+        return {
+          center: [mapState.center.lat, mapState.center.lng],
+          zoom: mapState.zoom
+        };
+      }
+    }
+  } catch (error) {
+    console.error('讀取地圖狀態失敗:', error);
+  }
+  return null;
+};
+
 // 初始化地圖
 onMounted(async () => {
+  // 從 localStorage 讀取地圖狀態
+  const savedState = loadMapState();
+  const initialCenter = savedState ? savedState.center : [25, 121];
+  const initialZoom = savedState ? savedState.zoom : 8;
+
   // 創建地圖實例
-  map.value = L.map('map').setView([25, 121], 8);
+  map.value = L.map('map').setView(initialCenter, initialZoom);
 
   // 添加 OpenStreetMap 圖層
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -499,7 +556,16 @@ onMounted(async () => {
     maxZoom: 19
   }).addTo(map.value);
 
-  console.log('地圖已初始化');
+  console.log('地圖已初始化', savedState ? '（已恢復上次狀態）' : '（使用默認狀態）');
+
+  // 監聽地圖移動和縮放事件
+  map.value.on('moveend', () => {
+    saveMapState();
+  });
+
+  map.value.on('zoomend', () => {
+    saveMapState();
+  });
 
   // 載入收藏列表
   loadFavorites();
@@ -515,13 +581,39 @@ onUnmounted(() => {
     clearTimeout(searchTimeout);
   }
 
+  // 清除地圖狀態保存計時器
+  if (mapStateSaveTimeout) {
+    clearTimeout(mapStateSaveTimeout);
+  }
+
   // 取消正在進行的搜索
   if (searchAbortController) {
     searchAbortController.abort();
   }
 
-  // 清理地圖
+  // 在卸載前保存地圖狀態（立即保存，不等待防抖）
   if (map.value) {
+    try {
+      const center = map.value.getCenter();
+      const zoom = map.value.getZoom();
+      const mapState = {
+        center: {
+          lat: center.lat,
+          lng: center.lng
+        },
+        zoom: zoom
+      };
+      localStorage.setItem(MAP_STATE_KEY, JSON.stringify(mapState));
+      console.log('組件卸載前保存地圖狀態:', mapState);
+    } catch (error) {
+      console.error('卸載前保存地圖狀態失敗:', error);
+    }
+
+    // 移除事件監聽器
+    map.value.off('moveend');
+    map.value.off('zoomend');
+
+    // 清理地圖
     map.value.remove();
   }
 
