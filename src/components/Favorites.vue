@@ -1,83 +1,100 @@
 <template>
-  <div class="favorites-container">
+  <div class="favorites-wrapper">
     <div v-if="favoriteNodes.length === 0" class="empty-state">
       <div class="empty-icon">⭐</div>
       <h3>尚未收藏任何節點</h3>
       <p>在地圖上點擊節點，將它們添加到最愛清單</p>
     </div>
 
-    <div v-else class="favorites-list">
-      <div v-for="node in favoriteNodes" :key="node.node_id" class="favorite-item">
-        <!-- 左側：節點信息 -->
-        <div class="node-info-section">
-          <div class="node-header">
-            <div class="node-name">
-              <span class="node-icon">📡</span>
-              <strong>{{ node.long_name || node.short_name || '未知節點' }}</strong>
-            </div>
-            <button class="remove-btn" @click="removeFavorite(node.node_id)" title="移除">
-              移除收藏
-            </button>
-          </div>
-
-          <div class="node-details">
-            <div class="info-row">
-              <span class="label">ID:</span>
-              <span class="value">{{ node.node_id_hex || node.node_id }}</span>
-            </div>
-            <div class="info-row">
-              <span class="label">型號:</span>
-              <span class="value">{{ node.hardware_model_name || '未知' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="label">位置:</span>
-              <span class="value">{{ formatCoordinates(node.latitude, node.longitude) }}</span>
-            </div>
-            <template v-if="getLatestMetric(node.node_id)">
-              <div class="info-row">
-                <span class="label">電量:</span>
-                <span class="value">{{ getLatestMetric(node.node_id).battery_level || 'N/A' }}%</span>
-              </div>
-              <div v-if="getLatestMetric(node.node_id).channel_utilization !== undefined" class="info-row">
-                <span class="label">頻道利用率:</span>
-                <span class="value">{{ parseFloat(getLatestMetric(node.node_id).channel_utilization || 0).toFixed(1)
-                }}%</span>
-              </div>
-              <div v-if="getLatestMetric(node.node_id).air_util_tx !== undefined" class="info-row">
-                <span class="label">空中傳輸率:</span>
-                <span class="value">{{ parseFloat(getLatestMetric(node.node_id).air_util_tx || 0).toFixed(1) }}%</span>
-              </div>
-              <div v-if="getLatestMetric(node.node_id).updated_at" class="info-row">
-                <span class="label">更新時間:</span>
-                <span class="value">{{ formatDateTime(getLatestMetric(node.node_id).updated_at) }} ({{
-                  getRelativeTime(getLatestMetric(node.node_id).updated_at) }})</span>
-              </div>
-            </template>
-          </div>
-
-          <button class="action-btn" @click="viewOnMap(node)">
-            🗺️ 在地圖上查看
+    <template v-else>
+      <!-- 快速導航條（僅移動端顯示） -->
+      <div v-if="windowWidth < 768" class="quick-nav">
+        <div class="quick-nav-scroll">
+          <button v-for="(node, index) in favoriteNodes" :key="node.node_id" class="quick-nav-item"
+            :class="{ active: activeIndex === index }" @click="scrollToCard(index)">
+            <span class="nav-item-icon">📡</span>
+            <span class="nav-item-name">{{ node.long_name || node.short_name || '未知節點' }}</span>
           </button>
         </div>
+      </div>
 
-        <!-- 右側：趨勢圖 -->
-        <div class="chart-section">
-          <DeviceMetricsChart v-if="nodeMetrics[node.node_id] && nodeMetrics[node.node_id].length > 0"
-            :node-id="node.node_id" :metrics="nodeMetrics[node.node_id]" :height="chartHeight" />
-          <div v-else-if="loadingMetrics[node.node_id]" class="chart-placeholder">
-            載入圖表中...
-          </div>
-          <div v-else class="chart-placeholder">
-            暫無設備指標數據
+      <div ref="listContainer" class="favorites-container" @scroll="handleScroll">
+        <div class="favorites-list">
+          <div v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setCardRef(el, index)"
+            class="favorite-item">
+            <!-- 左側：節點信息 -->
+            <div class="node-info-section">
+              <div class="node-header">
+                <div class="node-name">
+                  <span class="node-icon">📡</span>
+                  <strong>{{ node.long_name || node.short_name || '未知節點' }}</strong>
+                </div>
+                <button class="remove-btn" @click="removeFavorite(node.node_id)" title="移除">
+                  移除收藏
+                </button>
+              </div>
+
+              <div class="node-details">
+                <div class="info-row">
+                  <span class="label">ID:</span>
+                  <span class="value">{{ node.node_id_hex || node.node_id }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="label">型號:</span>
+                  <span class="value">{{ node.hardware_model_name || '未知' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="label">位置:</span>
+                  <span class="value">{{ formatCoordinates(node.latitude, node.longitude) }}</span>
+                </div>
+                <template v-if="getLatestMetric(node.node_id)">
+                  <div class="info-row">
+                    <span class="label">電量:</span>
+                    <span class="value">{{ getLatestMetric(node.node_id).battery_level || 'N/A' }}%</span>
+                  </div>
+                  <div v-if="getLatestMetric(node.node_id).channel_utilization !== undefined" class="info-row">
+                    <span class="label">頻道利用率:</span>
+                    <span class="value">{{ parseFloat(getLatestMetric(node.node_id).channel_utilization || 0).toFixed(1)
+                    }}%</span>
+                  </div>
+                  <div v-if="getLatestMetric(node.node_id).air_util_tx !== undefined" class="info-row">
+                    <span class="label">空中傳輸率:</span>
+                    <span class="value">{{ parseFloat(getLatestMetric(node.node_id).air_util_tx || 0).toFixed(1)
+                    }}%</span>
+                  </div>
+                  <div v-if="getLatestMetric(node.node_id).updated_at" class="info-row">
+                    <span class="label">更新時間:</span>
+                    <span class="value">{{ formatDateTime(getLatestMetric(node.node_id).updated_at) }} ({{
+                      getRelativeTime(getLatestMetric(node.node_id).updated_at) }})</span>
+                  </div>
+                </template>
+              </div>
+
+              <button class="action-btn" @click="viewOnMap(node)">
+                🗺️ 在地圖上查看
+              </button>
+            </div>
+
+            <!-- 右側：趨勢圖 -->
+            <div class="chart-section">
+              <DeviceMetricsChart v-if="nodeMetrics[node.node_id] && nodeMetrics[node.node_id].length > 0"
+                :node-id="node.node_id" :metrics="nodeMetrics[node.node_id]" :height="chartHeight" />
+              <div v-else-if="loadingMetrics[node.node_id]" class="chart-placeholder">
+                載入圖表中...
+              </div>
+              <div v-else class="chart-placeholder">
+                暫無設備指標數據
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, defineEmits } from 'vue';
+import { ref, computed, onMounted, onUnmounted, defineEmits, nextTick } from 'vue';
 import DeviceMetricsChart from './DeviceMetricsChart.vue';
 
 const emit = defineEmits(['view-on-map']);
@@ -86,6 +103,10 @@ const favoriteNodes = ref([]);
 const nodeMetrics = ref({});
 const loadingMetrics = ref({});
 const windowWidth = ref(window.innerWidth);
+const listContainer = ref(null);
+const cardRefs = ref([]);
+const activeIndex = ref(0);
+const isScrolling = ref(false);
 
 // 監聽窗口大小變化
 const handleResize = () => {
@@ -228,6 +249,60 @@ const viewOnMap = (node) => {
   emit('view-on-map', node);
 };
 
+// 設置卡片 ref
+const setCardRef = (el, index) => {
+  if (el) {
+    cardRefs.value[index] = el;
+  }
+};
+
+// 滾動到指定卡片
+const scrollToCard = async (index) => {
+  if (!listContainer.value || !cardRefs.value[index]) return;
+
+  isScrolling.value = true;
+  const card = cardRefs.value[index];
+  const container = listContainer.value;
+
+  // 計算卡片在容器中的位置
+  const cardRect = card.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  const scrollLeft = container.scrollLeft + (cardRect.left - containerRect.left);
+
+  container.scrollTo({
+    left: scrollLeft,
+    behavior: 'smooth'
+  });
+
+  // 更新活動索引
+  activeIndex.value = index;
+
+  // 等待滾動完成後重置標記
+  setTimeout(() => {
+    isScrolling.value = false;
+  }, 500);
+};
+
+// 處理滾動事件，更新活動索引
+const handleScroll = () => {
+  if (isScrolling.value || !listContainer.value || windowWidth.value >= 768) return;
+
+  const container = listContainer.value;
+  const scrollLeft = container.scrollLeft;
+  const containerWidth = container.clientWidth;
+  const cardWidth = containerWidth - 32; // calc(100vw - 32px)
+  const gap = 12;
+  const cardTotalWidth = cardWidth + gap;
+
+  // 計算當前可見的卡片索引
+  const currentIndex = Math.round(scrollLeft / cardTotalWidth);
+  const clampedIndex = Math.max(0, Math.min(currentIndex, favoriteNodes.value.length - 1));
+
+  if (activeIndex.value !== clampedIndex) {
+    activeIndex.value = clampedIndex;
+  }
+};
+
 onMounted(() => {
   loadFavorites();
   window.addEventListener('resize', handleResize);
@@ -244,23 +319,32 @@ defineExpose({
 </script>
 
 <style scoped>
-.favorites-container {
+.favorites-wrapper {
   width: 100%;
   min-height: calc(100vh - var(--navbar-height, 60px));
-  padding-top: calc(var(--navbar-height, 60px) + 16px);
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-bottom: 16px;
+  padding-top: calc(var(--navbar-height, 60px));
   background: #0f0f0f;
   box-sizing: border-box;
   position: relative;
-  /* 確保可以正常滾動 */
-  overflow-y: auto;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.favorites-container {
+  width: 100%;
+  flex: 1;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 16px;
+  box-sizing: border-box;
+  position: relative;
+  /* 移動端允許水平滾動 */
+  overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  /* 允許垂直滾動 */
-  touch-action: pan-y;
-  /* 確保可以滾動到頂部和底部 */
+  /* 允許水平滾動 */
+  touch-action: pan-x;
+  /* 確保可以滾動 */
   overscroll-behavior: contain;
 }
 
@@ -290,7 +374,7 @@ defineExpose({
   background: #1a1a1a;
   border-radius: 12px;
   box-shadow: none;
-  margin: 0 auto;
+  margin: 16px auto;
   max-width: 100%;
   border: 1px solid #2a2a2a;
 }
@@ -315,12 +399,85 @@ defineExpose({
   font-size: 14px;
 }
 
-/* Favorites List - 單排垂直佈局 */
+/* 快速導航條（僅移動端） */
+.quick-nav {
+  position: sticky;
+  top: calc(var(--navbar-height, 60px));
+  z-index: 100;
+  background: #0f0f0f;
+  padding: 12px 0;
+  border-bottom: 1px solid #2a2a2a;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.quick-nav-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 16px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+}
+
+.quick-nav-scroll::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari, Opera */
+}
+
+.quick-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 20px;
+  color: #888888;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.quick-nav-item:hover {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+  color: #e0e0e0;
+}
+
+.quick-nav-item.active {
+  background: linear-gradient(135deg, rgb(43, 107, 66) 0%, rgb(72, 161, 103) 100%);
+  border-color: rgb(72, 161, 103);
+  color: white;
+  box-shadow: 0 2px 8px rgba(72, 161, 103, 0.3);
+}
+
+.nav-item-icon {
+  font-size: 14px;
+}
+
+.nav-item-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Favorites List - 移動端水平滾動 */
 .favorites-list {
   display: flex;
-  flex-direction: column;
-  gap: 0;
-  width: 100%;
+  flex-direction: row;
+  gap: 12px;
+  width: max-content;
+  padding-left: 16px;
+  padding-right: 16px;
+  min-width: 100%;
 }
 
 .favorite-item {
@@ -331,11 +488,14 @@ defineExpose({
   transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
-  width: 100%;
+  width: calc(100vw - 32px);
+  min-width: calc(100vw - 32px);
+  max-width: calc(100vw - 32px);
+  flex-shrink: 0;
   position: relative;
-  margin-bottom: 10px;
+  margin-bottom: 0;
   /* 確保觸摸事件可以正常傳遞 */
-  touch-action: pan-y;
+  touch-action: pan-x pan-y;
   /* 防止意外觸發縮放 */
   -webkit-user-select: none;
   user-select: none;
@@ -475,7 +635,18 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 8px 8px;
+}
+
+/* 移動端：整個卡片圓角 */
+@media (max-width: 767px) {
+  .favorite-item {
+    border-radius: 8px;
+  }
+
+  .chart-section {
+    border-radius: 0 0 8px 8px;
+  }
 }
 
 .chart-placeholder {
@@ -488,11 +659,21 @@ defineExpose({
 
 /* Tablet and Desktop Styles - 左右佈局 */
 @media (min-width: 768px) {
-  .favorites-container {
+  .favorites-wrapper {
     padding-top: calc(var(--navbar-height, 60px) + 20px);
+  }
+
+  .quick-nav {
+    display: none;
+  }
+
+  .favorites-container {
     padding-left: 20px;
     padding-right: 20px;
     padding-bottom: 20px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    touch-action: pan-y;
   }
 
   .favorites-header {
@@ -531,11 +712,19 @@ defineExpose({
   }
 
   .favorites-list {
+    flex-direction: column;
     gap: 20px;
+    width: 100%;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .favorite-item {
     flex-direction: row;
+    width: 100%;
+    min-width: auto;
+    max-width: none;
+    margin-bottom: 0;
     border-radius: 2px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
@@ -589,8 +778,11 @@ defineExpose({
 
 /* Large Desktop Styles */
 @media (min-width: 1024px) {
-  .favorites-container {
+  .favorites-wrapper {
     padding-top: calc(var(--navbar-height, 60px) + 30px);
+  }
+
+  .favorites-container {
     padding-left: 30px;
     padding-right: 30px;
     padding-bottom: 30px;
@@ -634,8 +826,11 @@ defineExpose({
 
 /* Extra Large Desktop */
 @media (min-width: 1400px) {
-  .favorites-container {
+  .favorites-wrapper {
     padding-top: calc(var(--navbar-height, 70px) + 40px);
+  }
+
+  .favorites-container {
     padding-left: 40px;
     padding-right: 40px;
     padding-bottom: 40px;
