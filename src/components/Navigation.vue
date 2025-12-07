@@ -17,12 +17,19 @@
         </li>
       </ul>
 
-      <!-- Mobile Hamburger Button -->
-      <button class="hamburger" @click="toggleMobileMenu" aria-label="Toggle menu">
-        <span class="hamburger-line" :class="{ open: mobileMenuOpen }"></span>
-        <span class="hamburger-line" :class="{ open: mobileMenuOpen }"></span>
-        <span class="hamburger-line" :class="{ open: mobileMenuOpen }"></span>
-      </button>
+      <!-- Mobile Controls -->
+      <div class="mobile-controls">
+        <button class="refresh-btn" @click="refreshPage" aria-label="Refresh page">
+          <el-icon>
+            <Refresh />
+          </el-icon>
+        </button>
+        <button class="hamburger" @click="toggleMobileMenu" aria-label="Toggle menu">
+          <span class="hamburger-line" :class="{ open: mobileMenuOpen }"></span>
+          <span class="hamburger-line" :class="{ open: mobileMenuOpen }"></span>
+          <span class="hamburger-line" :class="{ open: mobileMenuOpen }"></span>
+        </button>
+      </div>
     </div>
 
     <!-- Mobile Menu -->
@@ -41,6 +48,8 @@
 <script setup>
 import { ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { ElIcon } from 'element-plus';
+import { Refresh } from '@element-plus/icons-vue';
 
 const route = useRoute();
 const mobileMenuOpen = ref(false);
@@ -64,6 +73,10 @@ const toggleMobileMenu = () => {
 
 const closeMobileMenu = () => {
   mobileMenuOpen.value = false;
+};
+
+const refreshPage = () => {
+  window.location.reload();
 };
 </script>
 
@@ -148,6 +161,34 @@ const closeMobileMenu = () => {
 /* Desktop Menu */
 .desktop-menu {
   display: none;
+}
+
+/* Mobile Controls */
+.mobile-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+/* Refresh Button */
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  color: white;
+  z-index: 1002;
+}
+
+.refresh-btn .el-icon {
+  font-size: 20px;
+}
+
+.refresh-btn:active {
+  opacity: 0.7;
 }
 
 /* Mobile Hamburger */
@@ -254,7 +295,7 @@ const closeMobileMenu = () => {
     display: flex;
   }
 
-  .hamburger,
+  .mobile-controls,
   .mobile-menu,
   .mobile-menu-overlay {
     display: none;
