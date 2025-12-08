@@ -200,9 +200,6 @@ const compareAndUpdateNodes = (oldNodes, newNodes) => {
 const updateNodesAndRender = (newNodes, showLoading = false) => {
   nodes.value = newNodes;
 
-  // 重新構建搜索索引
-  buildSearchIndex();
-
   // 重新渲染地圖標記
   renderNodes();
 
@@ -849,25 +846,9 @@ const refreshNodes = async () => {
 
 // 清理
 onUnmounted(() => {
-  // 清除搜索計時器
-  if (searchTimeout) {
-    clearTimeout(searchTimeout);
-  }
-
   // 清除地圖狀態保存計時器
   if (mapStateSaveTimeout) {
     clearTimeout(mapStateSaveTimeout);
-  }
-
-  // 取消動畫幀
-  if (searchAnimationFrame) {
-    cancelAnimationFrame(searchAnimationFrame);
-    searchAnimationFrame = null;
-  }
-
-  // 取消正在進行的搜索
-  if (searchAbortController) {
-    searchAbortController.abort();
   }
 
   // 在卸載前保存地圖狀態（立即保存，不等待防抖）
