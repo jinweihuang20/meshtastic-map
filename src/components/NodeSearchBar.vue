@@ -7,8 +7,13 @@
         <span v-else-if="filteredNodes.length > 0">找到 {{ filteredNodes.length }} 個節點</span>
         <span v-else-if="searchQuery && !isSearching">未找到符合的節點</span>
       </div>
-      <div v-if="!isSearching && filteredNodes.length > 0" class="results-list">
-        <div v-for="node in displayedNodes" :key="node.node_id" class="result-item"
+      <div v-if="!isSearching && filteredNodes.length > 0" class="results-list" ref="resultsListRef"
+        @scroll="handleScroll">
+        <!-- 虛擬滾動：上方占位符 -->
+        <div :style="{ height: startOffset + 'px' }"></div>
+
+        <!-- 只渲染可見區域的項目 -->
+        <div v-for="node in visibleNodes" :key="node.node_id" class="result-item"
           v-memo="[node.node_id, isNodeFavorited(node.node_id)]">
           <div class="result-info" @click="handleNodeSelect(node)">
             <div class="result-name">
@@ -25,9 +30,9 @@
             {{ isNodeFavorited(node.node_id) ? '⭐' : '☆' }}
           </button>
         </div>
-        <div v-if="filteredNodes.length > maxDisplayedResults" class="results-footer">
-          顯示前 {{ maxDisplayedResults }} 個結果（共 {{ filteredNodes.length }} 個）
-        </div>
+
+        <!-- 虛擬滾動：下方占位符 -->
+        <div :style="{ height: endOffset + 'px' }"></div>
       </div>
     </div>
 
@@ -80,10 +85,31 @@ const emit = defineEmits(['node-select', 'toggle-favorite', 'refresh', 'search-c
 const searchQuery = ref('');
 const filteredNodes = ref([]);
 const isSearching = ref(false);
-const maxDisplayedResults = ref(50);
 let searchTimeout = null;
 let searchAbortController = null;
 let searchAnimationFrame = null;
+
+// 虛擬滾動相關
+const resultsListRef = ref(null);
+const itemHeight = ref(72); // 每個結果項目的高度（像素）- 根據實際樣式調整
+const visibleCount = 20; // 可見區域顯示的項目數量（增加緩衝以確保流暢）
+const startIndex = ref(0);
+const endIndex = ref(visibleCount);
+let scrollTimeout = null; // 滾動防抖計時器
+
+// 動態計算項目高度（首次渲染後）
+const calculateItemHeight = () => {
+  if (resultsListRef.value && filteredNodes.value.length > 0) {
+    const firstItem = resultsListRef.value.querySelector('.result-item');
+    if (firstItem) {
+      const height = firstItem.offsetHeight;
+      if (height > 0 && height !== itemHeight.value) {
+        itemHeight.value = height;
+        console.log(`檢測到項目高度: ${height}px`);
+      }
+    }
+  }
+};
 
 // 搜索索引：預構建所有節點的搜索字符串
 const searchIndex = ref([]);
@@ -133,7 +159,7 @@ const buildSearchIndex = () => {
       String(node.short_name || ''),
       String(node.long_name || '')
     ].join('\0').toLowerCase();
-    
+
     return {
       node,
       searchText
@@ -152,7 +178,7 @@ const performSearch = async (query) => {
     cancelAnimationFrame(searchAnimationFrame);
     searchAnimationFrame = null;
   }
-  
+
   searchAbortController = new AbortController();
 
   if (!query) {
@@ -191,7 +217,7 @@ const performSearch = async (query) => {
 
       const endIndex = Math.min(startIndex + batchSize, totalItems);
       const index = searchIndex.value;
-      
+
       for (let i = startIndex; i < endIndex; i++) {
         if (searchAbortController.signal.aborted) {
           isSearching.value = false;
@@ -215,7 +241,7 @@ const performSearch = async (query) => {
   } else {
     const index = searchIndex.value;
     const len = totalItems;
-    
+
     for (let i = 0; i < len; i++) {
       if (searchAbortController.signal.aborted) {
         isSearching.value = false;
@@ -248,6 +274,19 @@ const finishSearch = (results, query, startTime) => {
   searchAnimationFrame = requestAnimationFrame(() => {
     filteredNodes.value = results;
     isSearching.value = false;
+
+    // 重置虛擬滾動位置
+    startIndex.value = 0;
+    endIndex.value = Math.min(visibleCount + 6, results.length);
+
+    // 重置滾動位置並計算項目高度
+    nextTick(() => {
+      if (resultsListRef.value) {
+        resultsListRef.value.scrollTop = 0;
+        calculateItemHeight();
+      }
+    });
+
     const endTime = performance.now();
     const duration = (endTime - startTime).toFixed(2);
     console.log(`搜尋 "${query}" 找到 ${results.length} 個節點，耗時: ${duration}ms`);
@@ -290,28 +329,72 @@ const clearSearch = () => {
   searchQuery.value = '';
   filteredNodes.value = [];
   isSearching.value = false;
-  
+
+  // 重置虛擬滾動
+  startIndex.value = 0;
+  endIndex.value = visibleCount + 5;
+
   if (searchTimeout) {
     clearTimeout(searchTimeout);
     searchTimeout = null;
   }
-  
+
   if (searchAbortController) {
     searchAbortController.abort();
   }
-  
+
   if (searchAnimationFrame) {
     cancelAnimationFrame(searchAnimationFrame);
     searchAnimationFrame = null;
   }
-  
+
   emit('search-change', []);
 };
 
-// 計算要顯示的節點
-const displayedNodes = computed(() => {
-  return filteredNodes.value.slice(0, maxDisplayedResults.value);
+// 虛擬滾動：計算可見的節點
+const visibleNodes = computed(() => {
+  return filteredNodes.value.slice(startIndex.value, endIndex.value);
 });
+
+// 虛擬滾動：計算上方占位符高度
+const startOffset = computed(() => {
+  return startIndex.value * itemHeight.value;
+});
+
+// 虛擬滾動：計算下方占位符高度
+const endOffset = computed(() => {
+  const total = filteredNodes.value.length;
+  const remaining = Math.max(0, total - endIndex.value);
+  return remaining * itemHeight.value;
+});
+
+// 處理滾動事件，更新可見區域（帶防抖優化）
+const handleScroll = () => {
+  if (!resultsListRef.value) return;
+
+  // 清除之前的計時器
+  if (scrollTimeout) {
+    cancelAnimationFrame(scrollTimeout);
+  }
+
+  // 使用 requestAnimationFrame 優化滾動性能
+  scrollTimeout = requestAnimationFrame(() => {
+    const scrollTop = resultsListRef.value.scrollTop;
+    const newStartIndex = Math.max(0, Math.floor(scrollTop / itemHeight.value) - 3); // 提前3個項目開始渲染
+    const newEndIndex = Math.min(
+      newStartIndex + visibleCount + 6, // 多渲染6個項目作為緩衝
+      filteredNodes.value.length
+    );
+
+    // 只在索引變化時更新，避免不必要的重新渲染
+    if (newStartIndex !== startIndex.value || newEndIndex !== endIndex.value) {
+      startIndex.value = newStartIndex;
+      endIndex.value = newEndIndex;
+    }
+
+    scrollTimeout = null;
+  });
+};
 
 // 處理節點選擇
 const handleNodeSelect = (node) => {
@@ -357,6 +440,9 @@ onUnmounted(() => {
   }
   if (searchAnimationFrame) {
     cancelAnimationFrame(searchAnimationFrame);
+  }
+  if (scrollTimeout) {
+    cancelAnimationFrame(scrollTimeout);
   }
   if (searchAbortController) {
     searchAbortController.abort();
@@ -485,15 +571,9 @@ onUnmounted(() => {
   flex: 1;
   will-change: scroll-position;
   contain: layout style paint;
-}
-
-.results-footer {
-  padding: 10px 16px;
-  background: #f8f9fa;
-  color: #666;
-  font-size: 12px;
-  text-align: center;
-  border-top: 1px solid #e9ecef;
+  /* 優化滾動性能 */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .result-item {
@@ -664,4 +744,3 @@ onUnmounted(() => {
   }
 }
 </style>
-
