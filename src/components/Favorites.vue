@@ -54,12 +54,12 @@
                   <div v-if="getLatestMetric(node.node_id).channel_utilization !== undefined" class="info-row">
                     <span class="label">頻道利用率:</span>
                     <span class="value">{{ parseFloat(getLatestMetric(node.node_id).channel_utilization || 0).toFixed(1)
-                    }}%</span>
+                      }}%</span>
                   </div>
                   <div v-if="getLatestMetric(node.node_id).air_util_tx !== undefined" class="info-row">
                     <span class="label">空中傳輸率:</span>
                     <span class="value">{{ parseFloat(getLatestMetric(node.node_id).air_util_tx || 0).toFixed(1)
-                    }}%</span>
+                      }}%</span>
                   </div>
                   <div v-if="getLatestMetric(node.node_id).updated_at" class="info-row">
                     <span class="label">更新時間:</span>
@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, defineEmits, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, onActivated, defineEmits, nextTick } from 'vue';
 import DeviceMetricsChart from './DeviceMetricsChart.vue';
 
 const emit = defineEmits(['view-on-map']);
@@ -344,11 +344,39 @@ const handleScroll = () => {
 onMounted(() => {
   loadFavorites();
   window.addEventListener('resize', handleResize);
+
+  // 監聽 localStorage 變化（跨標籤頁同步）
+  window.addEventListener('storage', handleStorageChange);
+
+  // 監聽自定義事件（同一窗口內同步）
+  window.addEventListener('favorites-updated', handleFavoritesUpdated);
+});
+
+onActivated(() => {
+  // 當組件被 keep-alive 激活時，重新載入最愛數據
+  // 這樣可以確保從其他頁面切換回來時數據是最新的
+  loadFavorites();
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
+  window.removeEventListener('storage', handleStorageChange);
+  window.removeEventListener('favorites-updated', handleFavoritesUpdated);
 });
+
+// 處理 localStorage 變化事件（跨標籤頁）
+const handleStorageChange = (e) => {
+  if (e.key === 'meshtastic_favorites') {
+    console.log('檢測到最愛數據變化（跨標籤頁），重新載入...');
+    loadFavorites();
+  }
+};
+
+// 處理自定義事件（同一窗口內）
+const handleFavoritesUpdated = () => {
+  console.log('檢測到最愛數據變化（同窗口），重新載入...');
+  loadFavorites();
+};
 
 // 暴露方法供外部調用
 defineExpose({

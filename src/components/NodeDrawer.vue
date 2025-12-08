@@ -18,10 +18,10 @@
             <span class="info-label">硬體型號</span>
             <span class="info-value">{{ hardwareModelName || '未知' }}</span>
           </div>
-          <div class="info-item">
+          <!-- <div class="info-item">
             <span class="info-label">連接狀態</span>
             <span class="info-value" v-html="connectionStatus"></span>
-          </div>
+          </div> -->
           <div class="info-item">
             <span class="info-label">位置座標</span>
             <span class="info-value">{{ latitude.toFixed(6) }}, {{ longitude.toFixed(6) }}</span>
@@ -193,6 +193,9 @@ const toggleFavorite = () => {
   }
 
   localStorage.setItem('meshtastic_favorites', JSON.stringify(favorites));
+
+  // 觸發自定義事件，通知其他組件（如同窗口的 Favorites 組件）數據已更新
+  window.dispatchEvent(new CustomEvent('favorites-updated'));
 };
 
 // 加載數據

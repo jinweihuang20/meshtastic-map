@@ -11,12 +11,12 @@
       @close="handleDrawerClose" />
 
     <!-- 狀態欄 -->
-    <div class="status-bar">
-      <div v-if="loading">載入中...</div>
-      <div v-else>
+    <div v-if="loading" class="status-bar">
+      <div>載入中...</div>
+      <!-- <div v-else>
         <div style="color: rgb(22, 163, 74);"><strong>● MQTT Connected</strong></div>
         <div style="color: #3388FF;"><strong>● MQTT Disconnected</strong></div>
-      </div>
+      </div> -->
     </div>
 
     <!-- 地圖主題切換按鈕 -->
@@ -692,6 +692,9 @@ const toggleFavoriteFromSearch = (node) => {
 
   // 保存到 localStorage
   localStorage.setItem('meshtastic_favorites', JSON.stringify(favorites.value));
+
+  // 觸發自定義事件，通知其他組件（如同窗口的 Favorites 組件）數據已更新
+  window.dispatchEvent(new CustomEvent('favorites-updated'));
 };
 
 // 選擇節點處理（從列表點擊）
