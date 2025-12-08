@@ -9,9 +9,9 @@
     <template v-else>
       <!-- 快速導航條（僅移動端顯示） -->
       <div v-if="windowWidth < 768" class="quick-nav">
-        <div class="quick-nav-scroll">
-          <button v-for="(node, index) in favoriteNodes" :key="node.node_id" class="quick-nav-item"
-            :class="{ active: activeIndex === index }" @click="scrollToCard(index)">
+        <div ref="quickNavScroll" class="quick-nav-scroll">
+          <button v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setNavItemRef(el, index)"
+            class="quick-nav-item" :class="{ active: activeIndex === index }" @click="scrollToCard(index)">
             <span class="nav-item-icon">📡</span>
             <span class="nav-item-name">{{ node.long_name || node.short_name || '未知節點' }}</span>
           </button>
@@ -55,12 +55,12 @@
                   <div v-if="getLatestMetric(node.node_id).channel_utilization !== undefined" class="info-row">
                     <span class="label">頻道利用率:</span>
                     <span class="value">{{ parseFloat(getLatestMetric(node.node_id).channel_utilization || 0).toFixed(1)
-                    }}%</span>
+                      }}%</span>
                   </div>
                   <div v-if="getLatestMetric(node.node_id).air_util_tx !== undefined" class="info-row">
                     <span class="label">空中傳輸率:</span>
                     <span class="value">{{ parseFloat(getLatestMetric(node.node_id).air_util_tx || 0).toFixed(1)
-                    }}%</span>
+                      }}%</span>
                   </div>
                   <div v-if="getLatestMetric(node.node_id).updated_at" class="info-row">
                     <span class="label">更新時間:</span>
@@ -104,9 +104,12 @@ const nodeMetrics = ref({});
 const loadingMetrics = ref({});
 const windowWidth = ref(window.innerWidth);
 const listContainer = ref(null);
+const quickNavScroll = ref(null);
 const cardRefs = ref([]);
+const navItemRefs = ref([]);
 const activeIndex = ref(0);
 const isScrolling = ref(false);
+const isScrollingNav = ref(false);
 
 // 監聽窗口大小變化
 const handleResize = () => {
@@ -256,6 +259,13 @@ const setCardRef = (el, index) => {
   }
 };
 
+// 設置導航項 ref
+const setNavItemRef = (el, index) => {
+  if (el) {
+    navItemRefs.value[index] = el;
+  }
+};
+
 // 滾動到指定卡片
 const scrollToCard = async (index) => {
   if (!listContainer.value || !cardRefs.value[index]) return;
@@ -277,10 +287,37 @@ const scrollToCard = async (index) => {
   // 更新活動索引
   activeIndex.value = index;
 
+  // 同時滾動快速導航條，使對應的導航項顯示在最左方
+  scrollNavToItem(index);
+
   // 等待滾動完成後重置標記
   setTimeout(() => {
     isScrolling.value = false;
   }, 500);
+};
+
+// 滾動快速導航條，使指定索引的導航項顯示在最左方
+const scrollNavToItem = (index) => {
+  if (!quickNavScroll.value || !navItemRefs.value[index] || isScrollingNav.value) return;
+
+  isScrollingNav.value = true;
+  const navItem = navItemRefs.value[index];
+  const navScroll = quickNavScroll.value;
+
+  // 計算導航項在滾動容器中的位置
+  const itemRect = navItem.getBoundingClientRect();
+  const scrollRect = navScroll.getBoundingClientRect();
+  const scrollLeft = navScroll.scrollLeft + (itemRect.left - scrollRect.left);
+
+  navScroll.scrollTo({
+    left: scrollLeft,
+    behavior: 'smooth'
+  });
+
+  // 等待滾動完成後重置標記
+  setTimeout(() => {
+    isScrollingNav.value = false;
+  }, 300);
 };
 
 // 處理滾動事件，更新活動索引
@@ -300,6 +337,8 @@ const handleScroll = () => {
 
   if (activeIndex.value !== clampedIndex) {
     activeIndex.value = clampedIndex;
+    // 當活動索引變化時，自動滾動快速導航條，使對應的導航項顯示在最左方
+    scrollNavToItem(clampedIndex);
   }
 };
 
