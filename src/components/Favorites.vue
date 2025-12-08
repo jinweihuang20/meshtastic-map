@@ -12,7 +12,6 @@
         <div ref="quickNavScroll" class="quick-nav-scroll">
           <button v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setNavItemRef(el, index)"
             class="quick-nav-item" :class="{ active: activeIndex === index }" @click="scrollToCard(index)">
-            <span class="nav-item-icon">📡</span>
             <span class="nav-item-name">{{ node.long_name || node.short_name || '未知節點' }}</span>
           </button>
         </div>
@@ -55,12 +54,12 @@
                   <div v-if="getLatestMetric(node.node_id).channel_utilization !== undefined" class="info-row">
                     <span class="label">頻道利用率:</span>
                     <span class="value">{{ parseFloat(getLatestMetric(node.node_id).channel_utilization || 0).toFixed(1)
-                      }}%</span>
+                    }}%</span>
                   </div>
                   <div v-if="getLatestMetric(node.node_id).air_util_tx !== undefined" class="info-row">
                     <span class="label">空中傳輸率:</span>
                     <span class="value">{{ parseFloat(getLatestMetric(node.node_id).air_util_tx || 0).toFixed(1)
-                      }}%</span>
+                    }}%</span>
                   </div>
                   <div v-if="getLatestMetric(node.node_id).updated_at" class="info-row">
                     <span class="label">更新時間:</span>
@@ -522,7 +521,7 @@ defineExpose({
 
 .favorite-item {
   background: #353535;
-  border-radius: 2px;
+  /* border-radius: 2px; */
   border: 1px solid #888888;
   overflow: visible;
   transition: all 0.2s ease;
@@ -680,10 +679,6 @@ defineExpose({
 
 /* 移動端：整個卡片圓角 */
 @media (max-width: 767px) {
-  .favorite-item {
-    border-radius: 8px;
-  }
-
   .chart-section {
     border-radius: 0 0 8px 8px;
   }
