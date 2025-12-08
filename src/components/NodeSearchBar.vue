@@ -1,7 +1,11 @@
 <template>
-  <div class="search-bar">
+  <div class="search-bar" :class="{ 
+    'icon-mode': shouldUseIconMode && !isExpanded,
+    'theme-dark': theme === 'dark',
+    'theme-light': theme === 'light'
+  }">
     <!-- 搜尋結果列表 -->
-    <div v-show="searchQuery && (isSearching || filteredNodes.length > 0 || searchQuery)" class="search-results">
+    <div v-show="(!shouldUseIconMode || isExpanded) && searchQuery && (isSearching || filteredNodes.length > 0 || searchQuery)" class="search-results">
       <div class="results-header">
         <span v-if="isSearching">搜尋中...</span>
         <span v-else-if="filteredNodes.length > 0">找到 {{ filteredNodes.length }} 個節點</span>
@@ -37,28 +41,46 @@
     </div>
 
     <!-- 搜尋輸入框 -->
-    <div class="search-container">
-      <el-button v-if="showRefreshButton" class="refresh-button" @click="handleRefresh" :title="'重新載入節點數據'">
+    <div class="search-container" :class="{ 'expanded': isExpanded || !shouldUseIconMode }">
+      <!-- 圖標模式：只顯示搜索圖標 -->
+      <button v-if="shouldUseIconMode && !isExpanded" class="search-icon-button" @click="toggleExpand"
+        :title="'展開搜尋'">
         <el-icon>
-          <Refresh />
+          <Search />
         </el-icon>
-      </el-button>
-      <div class="search-input-wrapper">
-        <input type="text" v-model="searchQuery" @input="handleSearch"
-          :placeholder="'搜尋節點 (總節點數: ' + totalNodesCount + ')'" class="search-input" />
-        <button v-if="searchQuery" class="clear-button" @click="clearSearch" :title="'清除搜尋'">
+      </button>
+
+      <!-- 展開的搜尋欄 -->
+      <template v-if="!shouldUseIconMode || isExpanded">
+        <el-button v-if="showRefreshButton" class="refresh-button" @click="handleRefresh" :title="'重新載入節點數據'">
+          <el-icon>
+            <Refresh />
+          </el-icon>
+        </el-button>
+        <div class="search-input-wrapper">
+          <input type="text" v-model="searchQuery" @input="handleSearch"
+            :placeholder="'搜尋節點 (總節點數: ' + totalNodesCount + ')'" class="search-input" />
+          <button v-if="searchQuery" class="clear-button" @click="clearSearch" :title="'清除搜尋'">
+            <el-icon>
+              <Close />
+            </el-icon>
+          </button>
+        </div>
+        <!-- 圖標模式：顯示收起按鈕 -->
+        <button v-if="shouldUseIconMode && isExpanded" class="collapse-button" @click="toggleCollapse"
+          :title="'收起搜尋'">
           <el-icon>
             <Close />
           </el-icon>
         </button>
-      </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import { Refresh, Close } from '@element-plus/icons-vue';
+import { Refresh, Close, Search } from '@element-plus/icons-vue';
 
 // Props
 const props = defineProps({
@@ -75,6 +97,16 @@ const props = defineProps({
     type: String,
     default: 'map', // 'map' 或 'favorites'
     validator: (value) => ['map', 'favorites'].includes(value)
+  },
+  displayMode: {
+    type: String,
+    default: 'full', // 'full' 或 'icon'
+    validator: (value) => ['full', 'icon'].includes(value)
+  },
+  theme: {
+    type: String,
+    default: 'light', // 'light' 或 'dark'
+    validator: (value) => ['light', 'dark'].includes(value)
   }
 });
 
@@ -88,6 +120,10 @@ const isSearching = ref(false);
 let searchTimeout = null;
 let searchAbortController = null;
 let searchAnimationFrame = null;
+
+// 展開/收起狀態（當 displayMode 為 'icon' 時使用）
+const isExpanded = ref(false);
+const shouldUseIconMode = computed(() => props.displayMode === 'icon' || (props.mode === 'favorites' && props.displayMode !== 'full'));
 
 // 虛擬滾動相關
 const resultsListRef = ref(null);
@@ -417,6 +453,24 @@ const handleRefresh = () => {
   emit('refresh');
 };
 
+// 切換展開/收起
+const toggleExpand = () => {
+  isExpanded.value = true;
+  // 展開後自動聚焦到輸入框
+  nextTick(() => {
+    const input = document.querySelector('.search-input');
+    if (input) {
+      input.focus();
+    }
+  });
+};
+
+const toggleCollapse = () => {
+  isExpanded.value = false;
+  // 收起時清空搜尋
+  clearSearch();
+};
+
 // 監聽 nodes 變化，重建索引
 watch(() => props.nodes, () => {
   if (props.nodes.length > 0) {
@@ -461,7 +515,75 @@ onUnmounted(() => {
   padding: 12px 8px;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
   z-index: 1500;
-  border-top: 2px solid #667eea;
+  border-top: 2px solid #48a167;
+  transition: all 0.3s ease;
+}
+
+.search-bar.icon-mode {
+  background: transparent;
+  box-shadow: none;
+  border-top: none;
+  padding: 12px 8px;
+}
+
+/* 深色主題 */
+.search-bar.theme-dark {
+  background: rgba(15, 15, 15, 0.98);
+  border-top: 2px solid #48a167;
+}
+
+.search-bar.theme-dark.icon-mode {
+  background: transparent;
+  border-top: none;
+}
+
+.search-bar.theme-dark .search-input {
+  background: #1a1a1a;
+  border-color: #2a2a2a;
+  color: #e0e0e0;
+}
+
+.search-bar.theme-dark .search-input:focus {
+  border-color: #48a167;
+  box-shadow: 0 0 0 3px rgba(72, 161, 103, 0.2);
+}
+
+.search-bar.theme-dark .search-input::placeholder {
+  color: #666;
+}
+
+.search-bar.theme-dark .search-icon-button {
+  background: #1a1a1a;
+  border-color: #48a167;
+  color: #48a167;
+  box-shadow: 0 2px 8px rgba(72, 161, 103, 0.3);
+}
+
+.search-bar.theme-dark .search-icon-button:hover {
+  background: #48a167;
+  color: white;
+  box-shadow: 0 4px 12px rgba(72, 161, 103, 0.4);
+}
+
+.search-bar.theme-dark .collapse-button {
+  background: #1a1a1a;
+  border-color: #2a2a2a;
+  color: #888;
+}
+
+.search-bar.theme-dark .collapse-button:hover {
+  background: #2a2a2a;
+  border-color: #48a167;
+  color: #48a167;
+}
+
+.search-bar.theme-dark .clear-button {
+  color: #888;
+}
+
+.search-bar.theme-dark .clear-button:hover {
+  color: #e0e0e0;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .search-container {
@@ -469,6 +591,75 @@ onUnmounted(() => {
   margin: 0 auto;
   display: flex;
   flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.search-container:not(.expanded) {
+  justify-content: flex-end;
+}
+
+.search-icon-button {
+  width: 48px;
+  height: 48px;
+  border: 2px solid #48a167;
+  border-radius: 8px;
+  background: white;
+  color: #48a167;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(72, 161, 103, 0.2);
+}
+
+.search-icon-button:hover {
+  background: #48a167;
+  color: white;
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(72, 161, 103, 0.3);
+}
+
+.search-icon-button:active {
+  transform: scale(0.95);
+}
+
+.search-icon-button .el-icon {
+  font-size: 20px;
+}
+
+.collapse-button {
+  width: 48px;
+  height: 48px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  background: white;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.collapse-button:hover {
+  background: #f8f9fa;
+  border-color: #48a167;
+  color: #48a167;
+  transform: scale(1.05);
+}
+
+.collapse-button:active {
+  transform: scale(0.95);
+}
+
+.collapse-button .el-icon {
+  font-size: 18px;
 }
 
 .refresh-button {
@@ -498,8 +689,8 @@ onUnmounted(() => {
 }
 
 .search-input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #48a167;
+  box-shadow: 0 0 0 3px rgba(72, 161, 103, 0.1);
 }
 
 .search-input::placeholder {
@@ -548,7 +739,7 @@ onUnmounted(() => {
   right: 8px;
   margin-bottom: 8px;
   background: white;
-  border: 2px solid #667eea;
+  border: 2px solid #48a167;
   border-radius: 8px;
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
   max-height: 300px;
@@ -557,9 +748,15 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
+.search-bar.theme-dark .search-results {
+  background: #1a1a1a;
+  border-color: #48a167;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+}
+
 .results-header {
   padding: 10px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, rgb(43, 107, 66) 0%, rgb(72, 161, 103) 100%);
   color: white;
   font-size: 13px;
   font-weight: 600;
@@ -591,6 +788,14 @@ onUnmounted(() => {
   background: #f8f9fa;
 }
 
+.search-bar.theme-dark .result-item {
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.search-bar.theme-dark .result-item:hover {
+  background: #2a2a2a;
+}
+
 .result-item:last-child {
   border-bottom: none;
 }
@@ -619,13 +824,17 @@ onUnmounted(() => {
   gap: 10px;
 }
 
+.search-bar.theme-dark .result-name {
+  color: #e0e0e0;
+}
+
 .result-short-name {
   border: 1px solid #f5f5f5;
   padding: 2px 4px;
   border-radius: 50px;
   width: 50px;
   height: 50px;
-  background-color: #667eea;
+  background-color: #48a167;
   text-align: center;
   justify-content: center;
   align-items: center;
@@ -638,6 +847,10 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.search-bar.theme-dark .result-id {
+  color: #888;
 }
 
 /* 收藏按鈕 */
@@ -653,6 +866,15 @@ onUnmounted(() => {
   justify-content: center;
   transition: all 0.2s ease;
   color: #999;
+}
+
+.search-bar.theme-dark .favorite-toggle-btn {
+  background: #1a1a1a;
+  color: #666;
+}
+
+.search-bar.theme-dark .favorite-toggle-btn:hover {
+  background: #2a2a2a;
 }
 
 .favorite-toggle-btn:hover {
@@ -725,6 +947,24 @@ onUnmounted(() => {
   .refresh-button {
     font-size: 21px;
     margin-left: 0;
+  }
+
+  .search-icon-button {
+    width: 52px;
+    height: 52px;
+  }
+
+  .search-icon-button .el-icon {
+    font-size: 22px;
+  }
+
+  .collapse-button {
+    width: 52px;
+    height: 52px;
+  }
+
+  .collapse-button .el-icon {
+    font-size: 20px;
   }
 }
 

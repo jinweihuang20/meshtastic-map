@@ -1,7 +1,7 @@
 <template>
   <div class="favorites-wrapper">
     <!-- 搜尋欄 -->
-    <NodeSearchBar :nodes="allNodes" :show-refresh-button="false" mode="favorites"
+    <NodeSearchBar :nodes="allNodes" :show-refresh-button="false" mode="favorites" display-mode="icon" theme="dark"
       @toggle-favorite="handleToggleFavoriteFromSearch" />
 
     <div v-if="favoriteNodes.length === 0" class="empty-state">

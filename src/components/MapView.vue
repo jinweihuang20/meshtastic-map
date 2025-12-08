@@ -27,7 +27,7 @@
     </div>
 
     <!-- 搜尋欄 -->
-    <NodeSearchBar :nodes="nodes" :show-refresh-button="true" mode="map" @node-select="handleNodeSelectFromSearch"
+    <NodeSearchBar display-mode="icon" :theme="isDarkMode ? 'dark' : 'light'" :nodes="nodes" :show-refresh-button="true" mode="map" @node-select="handleNodeSelectFromSearch"
       @toggle-favorite="toggleFavoriteFromSearch" @refresh="refreshNodes" />
   </div>
 </template>
@@ -465,7 +465,7 @@ const createNodeIcon = (node) => {
 
   const textHtml = hasShortName ? `
     <div style="
-      font-size: 10px; 
+      font-size: 12px; 
       color: ${textColor}; 
       background: ${bgColorHex}; 
       padding: 1px 4px; 
@@ -487,16 +487,15 @@ const createNodeIcon = (node) => {
       <div style="display: flex; flex-direction: column; align-items: center; pointer-events: none;">
         ${textHtml}
         <div style="
-          width: 14px; 
-          height: 14px; 
+          width: 5px; 
+          height: 5px; 
           border-radius: 50%; 
           background-color: ${markerColor}; 
-          border: 2px solid #FFFFFF; 
           box-shadow: 0 1px 3px rgba(0,0,0,0.3);
         "></div>
       </div>
     `,
-    iconSize: hasShortName ? [50, 30] : [20, 20],
+    iconSize: [50, 50],
     iconAnchor: hasShortName ? [25, 22] : [10, 10]
   });
 };
@@ -940,15 +939,15 @@ onUnmounted(() => {
 /* 地圖主題切換按鈕 */
 .theme-toggle-container {
   position: fixed;
-  bottom: 140px;
+  bottom: 70px;
   /* 位於搜尋欄上方，避免遮蔽縮放按鈕 */
   right: 10px;
   z-index: 1500;
 }
 
 .theme-toggle-btn {
-  width: 40px;
-  height: 40px;
+  width: 45px;
+  height: 45px;
   background: rgba(255, 255, 255, 0.95);
   border: none;
   border-radius: 8px;
