@@ -453,12 +453,62 @@ const selectNode = (nodeId) => {
 };
 
 
-// 在地圖上渲染節點
+// 緩存圖標創建函數，避免重複計算
+const createNodeIcon = (node) => {
+  const markerColor = '#0015d6ff';
+  const shortName = node.short_name || '';
+  const nodeIdHex = node.node_id_hex || '';
+  const bgColorHex = nodeIdHex.length >= 6 ? '#' + nodeIdHex.slice(-6) : '#ffffff';
+  const isDarkBg = isDarkColor(bgColorHex);
+  const textColor = isDarkBg ? '#ffffff' : '#333333';
+  const hasShortName = shortName && shortName.trim() !== '';
+
+  const textHtml = hasShortName ? `
+    <div style="
+      font-size: 10px; 
+      color: ${textColor}; 
+      background: ${bgColorHex}; 
+      padding: 1px 4px; 
+      border-radius: 3px; 
+      margin-bottom: 2px;
+      white-space: nowrap;
+      text-shadow: ${isDarkBg ? '0 0 2px rgba(0,0,0,0.5)' : '0 0 2px white, 0 0 2px white'};
+      font-weight: 500;
+      line-height: 1.2;
+      max-width: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    ">${shortName}</div>
+  ` : '';
+
+  return L.divIcon({
+    className: 'custom-node-marker',
+    html: `
+      <div style="display: flex; flex-direction: column; align-items: center; pointer-events: none;">
+        ${textHtml}
+        <div style="
+          width: 14px; 
+          height: 14px; 
+          border-radius: 50%; 
+          background-color: ${markerColor}; 
+          border: 2px solid #FFFFFF; 
+          box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        "></div>
+      </div>
+    `,
+    iconSize: hasShortName ? [50, 30] : [20, 20],
+    iconAnchor: hasShortName ? [25, 22] : [10, 10]
+  });
+};
+
+// 在地圖上渲染節點（優化版本 - 使用分批處理）
 const renderNodes = () => {
   if (!map.value) {
     console.log('地圖尚未初始化');
     return;
   }
+
+  const startTime = performance.now();
 
   // 清除現有的 MarkerClusterGroup
   if (markerClusterGroup.value) {
@@ -476,67 +526,53 @@ const renderNodes = () => {
   markers.value = [];
   nodeMarkerMap.value.clear();
 
-  console.log('開始過濾節點，總節點數:', nodes.value.length);
+  // 優化：合併 map 和 filter，減少一次遍歷
+  const validNodes = [];
+  const nodesArray = nodes.value;
+  const nodesLength = nodesArray.length;
 
-  // 過濾並轉換有效的經緯度數據
-  const validNodes = nodes.value
-    .map(node => {
-      // 將整數格式的經緯度轉換為十進制度數（除以 10,000,000）
-      const lat = node.latitude / 10000000;
-      const lng = node.longitude / 10000000;
+  for (let i = 0; i < nodesLength; i++) {
+    const node = nodesArray[i];
+    const lat = node.latitude / 10000000;
+    const lng = node.longitude / 10000000;
 
-      return {
+    // 過濾有效的經緯度
+    if (lat !== 0 && lng !== 0 &&
+      lat !== null && lng !== null &&
+      !isNaN(lat) && !isNaN(lng) &&
+      lat >= -90 && lat <= 90 &&
+      lng >= -180 && lng <= 180) {
+      validNodes.push({
         ...node,
         latitude: lat,
         longitude: lng
-      };
-    })
-    .filter(node => {
-      // 過濾有效的經緯度（在合理範圍內）
-      const isValid = node.latitude !== 0 &&
-        node.longitude !== 0 &&
-        node.latitude !== null &&
-        node.longitude !== null &&
-        !isNaN(node.latitude) &&
-        !isNaN(node.longitude) &&
-        node.latitude >= -90 &&
-        node.latitude <= 90 &&
-        node.longitude >= -180 &&
-        node.longitude <= 180;
-      return isValid;
-    });
-
-  console.log(`過濾後有效節點數: ${validNodes.length}`);
-  if (validNodes.length > 0) {
-    console.log('前3個有效節點樣例:', validNodes.slice(0, 3).map(n => ({
-      name: n.long_name,
-      lat: n.latitude,
-      lng: n.longitude
-    })));
+      });
+    }
   }
 
-  // 創建 MarkerClusterGroup
+  console.log(`過濾後有效節點數: ${validNodes.length}`);
+
+  // 創建 MarkerClusterGroup（優化配置）
   markerClusterGroup.value = L.markerClusterGroup({
     chunkedLoading: true,
-    maxClusterRadius: 80, // 聚類半徑（像素），值越大聚合越積極
-    disableClusteringAtZoom: 8, // 在縮放級別 15 及以上時禁用聚類，直接顯示所有標記（街道級別）
-    spiderfyOnMaxZoom: true, // 在最大縮放級別時展開
-    showCoverageOnHover: false, // 懸停時顯示覆蓋範圍
-    zoomToBoundsOnClick: true, // 點擊時縮放到邊界
-    removeOutsideVisibleBounds: true, // 移除可見範圍外的標記以提升性能
+    chunkDelay: 50, // 每批處理延遲，減少阻塞
+    maxClusterRadius: 80,
+    disableClusteringAtZoom: 8,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    zoomToBoundsOnClick: true,
+    removeOutsideVisibleBounds: true,
+    // 優化：使用緩存的圖標創建函數
     iconCreateFunction: function (cluster) {
       const count = cluster.getChildCount();
       let backgroundColor;
-
-      // 根據數量設定背景顏色
       if (count >= 1 && count <= 50) {
-        backgroundColor = 'rgba(22, 163, 74, 0.8)'; // 綠色
+        backgroundColor = 'rgba(22, 163, 74, 0.8)';
       } else if (count > 50 && count <= 100) {
-        backgroundColor = 'rgba(220, 38, 38, 0.8)'; // 紅色
+        backgroundColor = 'rgba(220, 38, 38, 0.8)';
       } else {
-        backgroundColor = 'rgba(249, 115, 22, 0.8)'; // 橘色
+        backgroundColor = 'rgba(249, 115, 22, 0.8)';
       }
-
       return L.divIcon({
         html: `<div style="background-color: ${backgroundColor}; color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${count}</div>`,
         className: 'marker-cluster',
@@ -545,110 +581,67 @@ const renderNodes = () => {
     }
   });
 
-  // 為每個節點創建標記
-  validNodes.forEach((node, index) => {
-    try {
-      // 固定使用藍色
-      const markerColor = '#0015d6ff'; // 固定藍色
-      const shortName = node.short_name || '';
+  // 使用 requestAnimationFrame 分批創建標記，避免阻塞主線程
+  const batchSize = 500; // 每批處理 500 個節點
+  let currentIndex = 0;
+  const totalNodes = validNodes.length;
 
-      // 從 node_id_hex 獲取最後 6 個字元作為 RGB 顏色
-      const nodeIdHex = node.node_id_hex || '';
-      const bgColorHex = nodeIdHex.length >= 6
-        ? '#' + nodeIdHex.slice(-6)
-        : '#ffffff'; // 如果沒有 node_id_hex，使用白色
+  const createMarkerBatch = () => {
+    const endIndex = Math.min(currentIndex + batchSize, totalNodes);
 
-      // 判斷背景顏色是否為深色，以決定文字顏色
-      const isDarkBg = isDarkColor(bgColorHex);
-      const textColor = isDarkBg ? '#ffffff' : '#333333';
+    for (let i = currentIndex; i < endIndex; i++) {
+      const node = validNodes[i];
+      try {
+        const icon = createNodeIcon(node);
+        const marker = L.marker([node.latitude, node.longitude], { icon });
 
-      // 創建自定義圖標，包含圓形標記和上方文本
-      // 如果有 short_name，顯示文本；否則只顯示圓形
-      const hasShortName = shortName && shortName.trim() !== '';
-      const textHtml = hasShortName ? `
-        <div style="
-          font-size: 10px; 
-          color: ${textColor}; 
-          background: ${bgColorHex}; 
-          padding: 1px 4px; 
-          border-radius: 3px; 
-          margin-bottom: 2px;
-          white-space: nowrap;
-          text-shadow: ${isDarkBg ? '0 0 2px rgba(0,0,0,0.5)' : '0 0 2px white, 0 0 2px white'};
-          font-weight: 500;
-          line-height: 1.2;
-          max-width: 60px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        ">${shortName}</div>
-      ` : '';
+        marker.on('click', () => {
+          openNodeDrawer(node);
+        });
 
-      const icon = L.divIcon({
-        className: 'custom-node-marker',
-        html: `
-          <div style="display: flex; flex-direction: column; align-items: center; pointer-events: none;">
-            ${textHtml}
-            <div style="
-              width: 14px; 
-              height: 14px; 
-              border-radius: 50%; 
-              background-color: ${markerColor}; 
-              border: 2px solid #FFFFFF; 
-              box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-            "></div>
-          </div>
-        `,
-        iconSize: hasShortName ? [50, 30] : [20, 20], // 有文本時需要更多空間
-        iconAnchor: hasShortName ? [25, 22] : [10, 10] // 錨點在圓形中心
-      });
-
-      const marker = L.marker([node.latitude, node.longitude], {
-        icon: icon
-      });
-
-      // 點擊標記時打開 drawer
-      marker.on('click', () => {
-        openNodeDrawer(node);
-      });
-
-      // 將標記添加到 MarkerClusterGroup
-      markerClusterGroup.value.addLayer(marker);
-      markers.value.push(marker);
-
-      // 保存 node_id 到 marker 的映射，用於搜尋定位
-      nodeMarkerMap.value.set(node.node_id, marker);
-
-      if (index === 0) {
-        console.log('成功添加第一個標記:', node.latitude, node.longitude);
-        console.log('標記對象:', marker);
-        console.log('地圖對象:', map.value);
+        markerClusterGroup.value.addLayer(marker);
+        markers.value.push(marker);
+        nodeMarkerMap.value.set(node.node_id, marker);
+      } catch (error) {
+        console.error('創建標記時出錯:', error, node);
       }
-    } catch (error) {
-      console.error('創建標記時出錯:', error, node);
     }
-  });
 
-  // 將 MarkerClusterGroup 添加到地圖
-  markerClusterGroup.value.addTo(map.value);
+    currentIndex = endIndex;
 
-  console.log('標記添加完成，總標記數:', markers.value.length);
+    if (currentIndex < totalNodes) {
+      // 繼續處理下一批
+      requestAnimationFrame(createMarkerBatch);
+    } else {
+      // 所有標記創建完成，添加到地圖
+      markerClusterGroup.value.addTo(map.value);
 
-  // 計算連接和未連接的節點數量
-  connectedCount.value = validNodes.filter(node =>
-    node.mqtt_connection_state_updated_at !== null &&
-    node.mqtt_connection_state_updated_at !== undefined &&
-    node.mqtt_connection_state_updated_at !== ''
-  ).length;
-  disconnectedCount.value = validNodes.length - connectedCount.value;
+      // 計算連接和未連接的節點數量
+      let connected = 0;
+      for (let i = 0; i < totalNodes; i++) {
+        const node = validNodes[i];
+        if (node.mqtt_connection_state_updated_at !== null &&
+          node.mqtt_connection_state_updated_at !== undefined &&
+          node.mqtt_connection_state_updated_at !== '') {
+          connected++;
+        }
+      }
+      connectedCount.value = connected;
+      disconnectedCount.value = totalNodes - connected;
 
-  console.log(`連接節點: ${connectedCount.value}, 未連接節點: ${disconnectedCount.value}`);
+      const endTime = performance.now();
+      console.log(`標記添加完成，總標記數: ${markers.value.length}，耗時: ${(endTime - startTime).toFixed(2)}ms`);
+      console.log(`連接節點: ${connectedCount.value}, 未連接節點: ${disconnectedCount.value}`);
+    }
+  };
 
-  // 如果有節點，調整地圖視圖以顯示所有節點
-  // if (validNodes.length > 0) {
-  //   const bounds = L.latLngBounds(validNodes.map(node => [node.latitude, node.longitude]));
-  //   map.value.fitBounds(bounds, { padding: [50, 50] });
-  //   console.log('地圖視圖已調整以顯示所有節點');
-  // }
+  // 開始第一批處理
+  if (totalNodes > 0) {
+    createMarkerBatch();
+  } else {
+    // 沒有節點，直接添加到地圖
+    markerClusterGroup.value.addTo(map.value);
+  }
 };
 
 const isDarkColor = (hexColor) => {
