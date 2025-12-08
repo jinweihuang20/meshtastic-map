@@ -1,9 +1,13 @@
 <template>
   <div class="favorites-wrapper">
+    <!-- 搜尋欄 -->
+    <NodeSearchBar :nodes="allNodes" :show-refresh-button="false" mode="favorites"
+      @toggle-favorite="handleToggleFavoriteFromSearch" />
+
     <div v-if="favoriteNodes.length === 0" class="empty-state">
       <div class="empty-icon">⭐</div>
       <h3>尚未收藏任何節點</h3>
-      <p>在地圖上點擊節點，將它們添加到最愛清單</p>
+      <p>在地圖上點擊節點，或使用上方搜尋功能將它們添加到最愛清單</p>
     </div>
 
     <template v-else>
@@ -95,10 +99,12 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, onActivated, defineEmits, nextTick } from 'vue';
 import DeviceMetricsChart from './DeviceMetricsChart.vue';
+import NodeSearchBar from './NodeSearchBar.vue';
 
 const emit = defineEmits(['view-on-map']);
 
 const favoriteNodes = ref([]);
+const allNodes = ref([]); // 所有節點數據（用於搜索）
 const nodeMetrics = ref({});
 const loadingMetrics = ref({});
 const windowWidth = ref(window.innerWidth);
@@ -144,6 +150,32 @@ const fetchDeviceMetrics = async (nodeId) => {
   }
 };
 
+// 載入所有節點數據（用於搜索）
+const loadAllNodes = async () => {
+  try {
+    // 先嘗試從緩存載入
+    const cachedData = localStorage.getItem('meshtastic_nodes_cache');
+    if (cachedData) {
+      try {
+        allNodes.value = JSON.parse(cachedData);
+        console.log(`從緩存載入 ${allNodes.value.length} 個節點用於搜索`);
+        return;
+      } catch (error) {
+        console.error('讀取緩存失敗:', error);
+      }
+    }
+
+    // 如果沒有緩存，從 API 獲取
+    const response = await fetch('/api/v1/nodes');
+    const data = await response.json();
+    allNodes.value = data.nodes || [];
+    console.log(`從 API 載入 ${allNodes.value.length} 個節點用於搜索`);
+  } catch (error) {
+    console.error('載入節點數據失敗:', error);
+    allNodes.value = [];
+  }
+};
+
 // 加載收藏的節點
 const loadFavorites = async () => {
   const stored = localStorage.getItem('meshtastic_favorites');
@@ -163,6 +195,53 @@ const loadFavorites = async () => {
       favoriteNodes.value = [];
     }
   }
+};
+
+// 處理從搜索組件切換收藏
+const handleToggleFavoriteFromSearch = (node) => {
+  const nodeId = node.node_id;
+  const isFavorited = favoriteNodes.value.some(n => n.node_id === nodeId);
+
+  if (isFavorited) {
+    // 移除收藏
+    favoriteNodes.value = favoriteNodes.value.filter(n => n.node_id !== nodeId);
+    delete nodeMetrics.value[nodeId];
+    delete loadingMetrics.value[nodeId];
+  } else {
+    // 添加收藏
+    const lat = node.latitude / 10000000;
+    const lng = node.longitude / 10000000;
+
+    const nodeData = {
+      node_id: node.node_id,
+      node_id_hex: node.node_id_hex,
+      long_name: node.long_name,
+      short_name: node.short_name,
+      hardware_model_name: node.hardware_model_name,
+      hasConnection: node.mqtt_connection_state_updated_at !== null &&
+        node.mqtt_connection_state_updated_at !== undefined &&
+        node.mqtt_connection_state_updated_at !== '',
+      latitude: lat,
+      longitude: lng,
+      battery_level: node.battery_level,
+      altitude: node.altitude
+    };
+    favoriteNodes.value.push(nodeData);
+
+    // 為新節點加載指標數據
+    (async () => {
+      loadingMetrics.value[nodeId] = true;
+      const metrics = await fetchDeviceMetrics(nodeId);
+      nodeMetrics.value[nodeId] = metrics;
+      loadingMetrics.value[nodeId] = false;
+    })();
+  }
+
+  // 保存到 localStorage
+  localStorage.setItem('meshtastic_favorites', JSON.stringify(favoriteNodes.value));
+
+  // 觸發自定義事件
+  window.dispatchEvent(new CustomEvent('favorites-updated'));
 };
 
 // 移除收藏
@@ -341,7 +420,8 @@ const handleScroll = () => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
+  await loadAllNodes(); // 載入所有節點用於搜索
   loadFavorites();
   window.addEventListener('resize', handleResize);
 

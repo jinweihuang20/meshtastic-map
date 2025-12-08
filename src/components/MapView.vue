@@ -27,54 +27,8 @@
     </div>
 
     <!-- 搜尋欄 -->
-    <div class="search-bar">
-      <!-- 搜尋結果列表 -->
-      <div v-show="searchQuery && (isSearching || filteredNodes.length > 0 || searchQuery)" class="search-results">
-        <div class="results-header">
-          <span v-if="isSearching">搜尋中...</span>
-          <span v-else-if="filteredNodes.length > 0">找到 {{ filteredNodes.length }} 個節點</span>
-          <span v-else-if="searchQuery && !isSearching">未找到符合的節點</span>
-        </div>
-        <div v-if="!isSearching && filteredNodes.length > 0" class="results-list">
-          <div v-for="node in displayedNodes" :key="node.node_id" class="result-item"
-            v-memo="[node.node_id, isNodeFavorited(node.node_id)]">
-            <div class="result-info" @click="selectNode(node.node_id)">
-              <div class="result-name">
-                <div class="result-short-name"
-                  v-bind:style="{ backgroundColor: '#' + node.node_id_hex.slice(-6), color: isDarkColor('#' + node.node_id_hex.slice(-6)) ? 'white' : 'black' }">
-                  {{ node.short_name }}</div>
-                <div> {{ node.long_name || node.short_name || '未知節點' }}
-                  <div class="result-id">{{ node.node_id_hex || node.node_id }}</div>
-                </div>
-              </div>
-            </div>
-            <button class="favorite-toggle-btn" :class="{ favorited: isNodeFavorited(node.node_id) }"
-              @click.stop="toggleFavoriteFromSearch(node)" :title="isNodeFavorited(node.node_id) ? '取消收藏' : '加入最愛'">
-              {{ isNodeFavorited(node.node_id) ? '⭐' : '☆' }}
-            </button>
-          </div>
-          <div v-if="filteredNodes.length > maxDisplayedResults" class="results-footer">
-            顯示前 {{ maxDisplayedResults }} 個結果（共 {{ filteredNodes.length }} 個）
-          </div>
-        </div>
-      </div>
-
-      <!-- 搜尋輸入框 -->
-      <div class="search-container">
-        <el-button class="refresh-button" @click="refreshNodes" :title="'重新載入節點數據'"> <el-icon>
-            <Refresh />
-          </el-icon> </el-button>
-        <div class="search-input-wrapper">
-          <input type="text" v-model="searchQuery" @input="handleSearch"
-            :placeholder="'搜尋節點 (總節點數: ' + nodes.length + ')'" class="search-input" />
-          <button v-if="searchQuery" class="clear-button" @click="clearSearch" :title="'清除搜尋'">
-            <el-icon>
-              <Close />
-            </el-icon>
-          </button>
-        </div>
-      </div>
-    </div>
+    <NodeSearchBar :nodes="nodes" :show-refresh-button="true" mode="map" @node-select="handleNodeSelectFromSearch"
+      @toggle-favorite="toggleFavoriteFromSearch" @refresh="refreshNodes" />
   </div>
 </template>
 
@@ -86,7 +40,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 import NodeDrawer from './NodeDrawer.vue';
-import { Refresh, Close } from '@element-plus/icons-vue';
+import NodeSearchBar from './NodeSearchBar.vue';
 
 const mapContainer = ref(null);
 const map = ref(null);
@@ -112,19 +66,8 @@ const selectedNode = ref({
   lastConnectedTime: null
 });
 
-// 搜尋相關
-const searchQuery = ref('');
-const filteredNodes = ref([]);
-const selectedNodeId = ref('');
+// 地圖標記相關
 const nodeMarkerMap = ref(new Map()); // 存儲 node_id 到 marker 的映射
-const isSearching = ref(false); // 搜索狀態
-const maxDisplayedResults = ref(50); // 最多顯示的結果數量（虛擬滾動優化）
-let searchTimeout = null; // 防抖計時器
-let searchAbortController = null; // 用於取消正在進行的搜索
-let searchAnimationFrame = null; // requestAnimationFrame ID
-
-// 搜索索引：預構建所有節點的搜索字符串，避免重複轉換
-const searchIndex = ref([]); // 存儲預處理後的搜索數據 [{node, searchText}, ...]
 
 // 收藏相關
 const favorites = ref([]);
@@ -377,243 +320,28 @@ const fetchDeviceMetrics = async (nodeId) => {
   }
 };
 
-// 構建搜索索引（在數據加載時一次性構建，大幅提升搜索速度）
-const buildSearchIndex = () => {
-  const startTime = performance.now();
-  searchIndex.value = nodes.value.map(node => {
-    // 一次性構建所有搜索字段的組合字符串，使用特殊分隔符避免誤匹配
-    const searchText = [
-      String(node.id || ''),
-      String(node.node_id || ''),
-      String(node.node_id_hex || ''),
-      String(node.short_name || ''),
-      String(node.long_name || '')
-    ].join('\0').toLowerCase(); // 使用 \0 作為分隔符，避免跨字段匹配
+// 從搜索組件處理節點選擇
+const handleNodeSelectFromSearch = (node) => {
+  if (!node || !map.value) return;
 
-    return {
-      node,
-      searchText
-    };
-  });
-  const endTime = performance.now();
-  console.log(`搜索索引構建完成，耗時: ${(endTime - startTime).toFixed(2)}ms，節點數: ${searchIndex.value.length}`);
-};
+  // 轉換經緯度
+  const lat = node.latitude / 10000000;
+  const lng = node.longitude / 10000000;
 
-// 實際執行搜索的函數（極速優化版本 - 使用預構建索引）
-const performSearch = async (query) => {
-  // 取消之前的搜索（如果還在進行）
-  if (searchAbortController) {
-    searchAbortController.abort();
-  }
-  if (searchAnimationFrame) {
-    cancelAnimationFrame(searchAnimationFrame);
-    searchAnimationFrame = null;
-  }
-
-  searchAbortController = new AbortController();
-
-  // 如果查詢為空，立即清空結果
-  if (!query) {
-    isSearching.value = false;
-    filteredNodes.value = [];
-    selectedNodeId.value = '';
+  // 檢查座標是否有效
+  if (lat === 0 || lng === 0 || !lat || !lng) {
+    alert('此節點沒有有效的位置信息');
     return;
   }
 
-  // 如果索引未構建，先構建索引
-  if (searchIndex.value.length === 0 && nodes.value.length > 0) {
-    buildSearchIndex();
-  }
+  // 定位到節點
+  map.value.setView([lat, lng], 15);
 
-  // 設置搜索狀態
-  isSearching.value = true;
-  const queryLower = query.toLowerCase();
-  const queryLength = queryLower.length;
-  const results = [];
-  const startTime = performance.now();
+  // 打開 drawer 顯示節點信息
+  openNodeDrawer(node);
 
-  // 使用 nextTick 確保 UI 更新
-  await nextTick();
-
-  // 檢查是否已被取消
-  if (searchAbortController.signal.aborted) {
-    isSearching.value = false;
-    return;
-  }
-
-  // 極速搜索：直接遍歷預構建的索引，使用單一字符串匹配
-  const totalItems = searchIndex.value.length;
-  const queryLen = queryLower.length;
-
-  // 根據數據量決定是否使用分批處理
-  const useBatching = totalItems > 10000; // 超過10000個節點才使用分批處理
-  const batchSize = 2000; // 增大批次大小以減少開銷
-
-  if (useBatching) {
-    // 大量數據時使用分批處理
-    const processBatch = (startIndex) => {
-      if (searchAbortController.signal.aborted) {
-        isSearching.value = false;
-        return;
-      }
-
-      const endIndex = Math.min(startIndex + batchSize, totalItems);
-      const index = searchIndex.value;
-
-      // 使用 for 循環，直接訪問數組，避免額外變量
-      for (let i = startIndex; i < endIndex; i++) {
-        if (searchAbortController.signal.aborted) {
-          isSearching.value = false;
-          return;
-        }
-
-        // 直接使用 indexOf，比 includes 稍快
-        if (index[i].searchText.indexOf(queryLower) !== -1) {
-          results.push(index[i].node);
-        }
-      }
-
-      // 如果還有更多項目要處理，繼續下一批
-      if (endIndex < totalItems) {
-        searchAnimationFrame = requestAnimationFrame(() => {
-          processBatch(endIndex);
-        });
-      } else {
-        // 所有項目處理完成
-        finishSearch(results, query, startTime);
-      }
-    };
-
-    processBatch(0);
-  } else {
-    // 小量數據時直接一次性處理（最快）
-    // 預先獲取數組引用，避免重複訪問
-    const index = searchIndex.value;
-    const len = totalItems;
-
-    // 優化：對於非常短的查詢，可以使用更激進的優化
-    if (queryLen === 1) {
-      // 單字符查詢：使用更簡單的匹配
-      for (let i = 0; i < len; i++) {
-        if (searchAbortController.signal.aborted) {
-          isSearching.value = false;
-          return;
-        }
-        // 對於單字符，直接檢查第一個字符可能更快，但這裡保持簡單
-        if (index[i].searchText.indexOf(queryLower) !== -1) {
-          results.push(index[i].node);
-        }
-      }
-    } else {
-      // 多字符查詢：標準匹配
-      for (let i = 0; i < len; i++) {
-        if (searchAbortController.signal.aborted) {
-          isSearching.value = false;
-          return;
-        }
-        // 使用 indexOf 比 includes 稍快
-        if (index[i].searchText.indexOf(queryLower) !== -1) {
-          results.push(index[i].node);
-        }
-      }
-    }
-
-    // 立即完成搜索
-    finishSearch(results, query, startTime);
-  }
+  console.log(`定位到節點: ${node.long_name || node.short_name}`, lat, lng);
 };
-
-// 完成搜索並更新結果
-const finishSearch = (results, query, startTime) => {
-  // 檢查是否已被取消
-  if (searchAbortController.signal.aborted) {
-    isSearching.value = false;
-    return;
-  }
-
-  // 排序結果（只在有結果時才排序）
-  if (results.length > 0) {
-    // 使用更高效的排序方式
-    results.sort((a, b) => {
-      const aName = a.long_name || a.short_name || '';
-      const bName = b.long_name || b.short_name || '';
-      return aName.localeCompare(bName, 'zh-CN', { numeric: true });
-    });
-  }
-
-  // 使用 requestAnimationFrame 來批量更新 DOM
-  searchAnimationFrame = requestAnimationFrame(() => {
-    filteredNodes.value = results;
-    isSearching.value = false;
-    const endTime = performance.now();
-    const duration = (endTime - startTime).toFixed(2);
-    console.log(`搜尋 "${query}" 找到 ${results.length} 個節點，耗時: ${duration}ms`);
-    searchAnimationFrame = null;
-  });
-};
-
-// 清除搜尋
-const clearSearch = () => {
-  searchQuery.value = '';
-  filteredNodes.value = [];
-  selectedNodeId.value = '';
-  isSearching.value = false;
-
-  // 清除計時器
-  if (searchTimeout) {
-    clearTimeout(searchTimeout);
-    searchTimeout = null;
-  }
-
-  // 取消正在進行的搜索
-  if (searchAbortController) {
-    searchAbortController.abort();
-  }
-
-  // 取消動畫幀
-  if (searchAnimationFrame) {
-    cancelAnimationFrame(searchAnimationFrame);
-    searchAnimationFrame = null;
-  }
-};
-
-// 搜尋處理（帶防抖，優化版本）
-const handleSearch = () => {
-  const query = searchQuery.value.trim();
-
-  // 清除之前的計時器
-  if (searchTimeout) {
-    clearTimeout(searchTimeout);
-  }
-
-  // 如果查詢為空，立即清空結果（不需要防抖）
-  if (!query) {
-    filteredNodes.value = [];
-    selectedNodeId.value = '';
-    isSearching.value = false;
-    if (searchAbortController) {
-      searchAbortController.abort();
-    }
-    if (searchAnimationFrame) {
-      cancelAnimationFrame(searchAnimationFrame);
-      searchAnimationFrame = null;
-    }
-    return;
-  }
-
-  // 動態調整防抖時間：由於搜索速度大幅提升，可以縮短防抖時間
-  const debounceTime = query.length <= 1 ? 100 : query.length <= 2 ? 150 : 200;
-
-  // 設置防抖：等待用戶停止輸入後才執行搜索
-  searchTimeout = setTimeout(() => {
-    performSearch(query);
-  }, debounceTime);
-};
-
-// 計算要顯示的節點（虛擬滾動優化）
-const displayedNodes = computed(() => {
-  return filteredNodes.value.slice(0, maxDisplayedResults.value);
-});
 
 // 打開節點 drawer
 const openNodeDrawer = (node) => {
