@@ -29,12 +29,15 @@
     <!-- 搜尋欄 -->
     <div class="search-bar">
       <!-- 搜尋結果列表 -->
-      <div v-if="searchQuery && filteredNodes.length > 0" class="search-results">
+      <div v-show="searchQuery && (isSearching || filteredNodes.length > 0 || searchQuery)" class="search-results">
         <div class="results-header">
-          找到 {{ filteredNodes.length }} 個節點
+          <span v-if="isSearching">搜尋中...</span>
+          <span v-else-if="filteredNodes.length > 0">找到 {{ filteredNodes.length }} 個節點</span>
+          <span v-else-if="searchQuery && !isSearching">未找到符合的節點</span>
         </div>
-        <div class="results-list">
-          <div v-for="node in filteredNodes" :key="node.node_id" class="result-item">
+        <div v-if="!isSearching && filteredNodes.length > 0" class="results-list">
+          <div v-for="node in displayedNodes" :key="node.node_id" class="result-item"
+            v-memo="[node.node_id, isNodeFavorited(node.node_id)]">
             <div class="result-info" @click="selectNode(node.node_id)">
               <div class="result-name">
                 <div class="result-short-name"
@@ -44,42 +47,46 @@
                   <div class="result-id">{{ node.node_id_hex || node.node_id }}</div>
                 </div>
               </div>
-
             </div>
             <button class="favorite-toggle-btn" :class="{ favorited: isNodeFavorited(node.node_id) }"
               @click.stop="toggleFavoriteFromSearch(node)" :title="isNodeFavorited(node.node_id) ? '取消收藏' : '加入最愛'">
               {{ isNodeFavorited(node.node_id) ? '⭐' : '☆' }}
             </button>
           </div>
+          <div v-if="filteredNodes.length > maxDisplayedResults" class="results-footer">
+            顯示前 {{ maxDisplayedResults }} 個結果（共 {{ filteredNodes.length }} 個）
+          </div>
         </div>
-      </div>
-
-      <!-- 無結果提示 -->
-      <div v-if="searchQuery && filteredNodes.length === 0" class="search-results no-results">
-        <div class="no-results-message">未找到符合的節點</div>
       </div>
 
       <!-- 搜尋輸入框 -->
       <div class="search-container">
-        <el-button class="refresh-button" @click="fetchNodes"> <el-icon>
+        <el-button class="refresh-button" @click="refreshNodes" :title="'重新載入節點數據'"> <el-icon>
             <Refresh />
           </el-icon> </el-button>
-        <input type="text" v-model="searchQuery" @input="handleSearch"
-          :placeholder="'搜尋節點 (總節點數: ' + nodes.length + ')'" class="search-input" />
+        <div class="search-input-wrapper">
+          <input type="text" v-model="searchQuery" @input="handleSearch"
+            :placeholder="'搜尋節點 (總節點數: ' + nodes.length + ')'" class="search-input" />
+          <button v-if="searchQuery" class="clear-button" @click="clearSearch" :title="'清除搜尋'">
+            <el-icon>
+              <Close />
+            </el-icon>
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 import NodeDrawer from './NodeDrawer.vue';
-import { Refresh } from '@element-plus/icons-vue';
+import { Refresh, Close } from '@element-plus/icons-vue';
 
 const mapContainer = ref(null);
 const map = ref(null);
@@ -110,8 +117,14 @@ const searchQuery = ref('');
 const filteredNodes = ref([]);
 const selectedNodeId = ref('');
 const nodeMarkerMap = ref(new Map()); // 存儲 node_id 到 marker 的映射
+const isSearching = ref(false); // 搜索狀態
+const maxDisplayedResults = ref(50); // 最多顯示的結果數量（虛擬滾動優化）
 let searchTimeout = null; // 防抖計時器
 let searchAbortController = null; // 用於取消正在進行的搜索
+let searchAnimationFrame = null; // requestAnimationFrame ID
+
+// 搜索索引：預構建所有節點的搜索字符串，避免重複轉換
+const searchIndex = ref([]); // 存儲預處理後的搜索數據 [{node, searchText}, ...]
 
 // 收藏相關
 const favorites = ref([]);
@@ -119,6 +132,9 @@ const favorites = ref([]);
 // 地圖狀態保存相關
 const MAP_STATE_KEY = 'meshtastic_map_state';
 const MAP_THEME_KEY = 'meshtastic_map_theme';
+const NODES_CACHE_KEY = 'meshtastic_nodes_cache';
+const NODES_CACHE_TIMESTAMP_KEY = 'meshtastic_nodes_cache_timestamp';
+const CACHE_EXPIRY_TIME = 5 * 60 * 1000; // 緩存有效期：5分鐘
 let mapStateSaveTimeout = null; // 防抖計時器
 
 // 地圖主題相關
@@ -126,20 +142,222 @@ const isDarkMode = ref(false);
 const currentTileLayer = ref(null);
 const labelsLayer = ref(null); // 標籤圖層（深色模式使用）
 
-// 從 API 獲取節點數據
-const fetchNodes = async () => {
+// 從 localStorage 讀取緩存的節點數據
+const loadCachedNodes = () => {
   try {
+    const cachedData = localStorage.getItem(NODES_CACHE_KEY);
+    const cachedTimestamp = localStorage.getItem(NODES_CACHE_TIMESTAMP_KEY);
+
+    if (!cachedData || !cachedTimestamp) {
+      return null;
+    }
+
+    const timestamp = parseInt(cachedTimestamp, 10);
+    const now = Date.now();
+
+    // 檢查緩存是否過期
+    if (now - timestamp > CACHE_EXPIRY_TIME) {
+      console.log('緩存已過期，將從 API 獲取最新數據');
+      return null;
+    }
+
+    const nodes = JSON.parse(cachedData);
+    console.log(`從緩存載入 ${nodes.length} 個節點（緩存時間: ${new Date(timestamp).toLocaleString()}）`);
+    return nodes;
+  } catch (error) {
+    console.error('讀取緩存數據失敗:', error);
+    return null;
+  }
+};
+
+// 保存節點數據到 localStorage
+const saveNodesToCache = (nodes) => {
+  try {
+    const timestamp = Date.now();
+    localStorage.setItem(NODES_CACHE_KEY, JSON.stringify(nodes));
+    localStorage.setItem(NODES_CACHE_TIMESTAMP_KEY, timestamp.toString());
+    console.log(`節點數據已保存到緩存（${nodes.length} 個節點）`);
+  } catch (error) {
+    console.error('保存緩存數據失敗:', error);
+    // 如果存儲空間不足，嘗試清理舊緩存
+    if (error.name === 'QuotaExceededError') {
+      console.warn('存儲空間不足，嘗試清理舊緩存');
+      try {
+        localStorage.removeItem(NODES_CACHE_KEY);
+        localStorage.removeItem(NODES_CACHE_TIMESTAMP_KEY);
+      } catch (e) {
+        console.error('清理緩存失敗:', e);
+      }
+    }
+  }
+};
+
+// 比對並更新節點數據
+const compareAndUpdateNodes = (oldNodes, newNodes) => {
+  const oldNodesMap = new Map(oldNodes.map(node => [node.node_id, node]));
+  const newNodesMap = new Map(newNodes.map(node => [node.node_id, node]));
+
+  let hasChanges = false;
+  const updatedNodes = [];
+  const addedNodes = [];
+  const removedNodes = [];
+
+  // 檢查新增和更新的節點
+  for (const newNode of newNodes) {
+    const oldNode = oldNodesMap.get(newNode.node_id);
+    if (!oldNode) {
+      // 新節點
+      addedNodes.push(newNode);
+      hasChanges = true;
+    } else {
+      // 檢查是否有更新（比較關鍵字段）
+      const isUpdated =
+        oldNode.latitude !== newNode.latitude ||
+        oldNode.longitude !== newNode.longitude ||
+        oldNode.long_name !== newNode.long_name ||
+        oldNode.short_name !== newNode.short_name ||
+        oldNode.mqtt_connection_state_updated_at !== newNode.mqtt_connection_state_updated_at ||
+        oldNode.battery_level !== newNode.battery_level ||
+        oldNode.altitude !== newNode.altitude;
+
+      if (isUpdated) {
+        updatedNodes.push(newNode);
+        hasChanges = true;
+      } else {
+        // 沒有變化，使用舊節點（保留緩存中的其他字段）
+        updatedNodes.push(oldNode);
+      }
+    }
+  }
+
+  // 檢查刪除的節點
+  for (const oldNode of oldNodes) {
+    if (!newNodesMap.has(oldNode.node_id)) {
+      removedNodes.push(oldNode);
+      hasChanges = true;
+    }
+  }
+
+  if (hasChanges) {
+    console.log(`數據更新: 新增 ${addedNodes.length} 個，更新 ${updatedNodes.length} 個，刪除 ${removedNodes.length} 個節點`);
+  } else {
+    console.log('數據無變化，使用緩存數據');
+  }
+
+  return {
+    nodes: updatedNodes,
+    hasChanges,
+    addedNodes,
+    updatedNodes,
+    removedNodes
+  };
+};
+
+// 更新節點數據並重新渲染
+const updateNodesAndRender = (newNodes, showLoading = false) => {
+  nodes.value = newNodes;
+
+  // 重新構建搜索索引
+  buildSearchIndex();
+
+  // 重新渲染地圖標記
+  renderNodes();
+
+  if (showLoading) {
+    loading.value = false;
+  }
+};
+
+// 從 API 獲取節點數據（帶緩存機制）
+const fetchNodes = async (useCache = true, showLoading = true) => {
+  let cachedNodes = null;
+
+  // 優先從緩存載入數據
+  if (useCache) {
+    cachedNodes = loadCachedNodes();
+    if (cachedNodes && cachedNodes.length > 0) {
+      // 立即顯示緩存數據
+      updateNodesAndRender(cachedNodes, false); // 不顯示 loading，因為使用緩存
+
+      // 檢查緩存年齡
+      const cacheAge = Date.now() - parseInt(localStorage.getItem(NODES_CACHE_TIMESTAMP_KEY) || '0', 10);
+
+      // 如果緩存數據較新（小於1分鐘），在背景靜默更新（不顯示 loading）
+      if (cacheAge < 60000) {
+        // 緩存很新，在背景靜默更新
+        fetchNodesFromAPI(false).catch(err => {
+          console.error('背景更新節點數據失敗:', err);
+        });
+        return;
+      } else {
+        // 緩存較舊，顯示 loading 並更新
+        if (showLoading) {
+          loading.value = true;
+        }
+        await fetchNodesFromAPI(showLoading);
+        return;
+      }
+    }
+  }
+
+  // 如果沒有緩存或緩存過期，顯示 loading 並從 API 獲取
+  if (showLoading) {
     loading.value = true;
+  }
+
+  await fetchNodesFromAPI(showLoading);
+};
+
+// 從 API 獲取節點數據（實際的 API 調用）
+const fetchNodesFromAPI = async (showLoading = true) => {
+  try {
     const response = await fetch('/api/v1/nodes');
     const data = await response.json();
     console.log('API 返回數據:', data);
     console.log('節點總數:', data.nodes?.length);
-    nodes.value = data.nodes || [];
-    renderNodes();
+
+    const newNodes = data.nodes || [];
+
+    // 如果有現有數據，進行比對更新
+    if (nodes.value.length > 0 && newNodes.length > 0) {
+      const comparison = compareAndUpdateNodes(nodes.value, newNodes);
+
+      if (comparison.hasChanges) {
+        // 有變化，更新數據
+        updateNodesAndRender(comparison.nodes, showLoading);
+        // 保存到緩存
+        saveNodesToCache(comparison.nodes);
+      } else {
+        // 無變化，只更新緩存時間戳（表示數據仍然有效）
+        const timestamp = Date.now();
+        localStorage.setItem(NODES_CACHE_TIMESTAMP_KEY, timestamp.toString());
+        console.log('數據無變化，更新緩存時間戳');
+        if (showLoading) {
+          loading.value = false;
+        }
+      }
+    } else {
+      // 首次載入或數據為空，直接使用新數據
+      updateNodesAndRender(newNodes, showLoading);
+      // 保存到緩存
+      saveNodesToCache(newNodes);
+    }
   } catch (error) {
     console.error('獲取節點數據失敗:', error);
-  } finally {
-    loading.value = false;
+
+    // 如果 API 失敗但有現有數據，繼續使用現有數據
+    if (nodes.value.length > 0) {
+      console.log('API 請求失敗，繼續使用現有數據');
+      if (showLoading) {
+        loading.value = false;
+      }
+    } else {
+      // 沒有數據且 API 失敗，顯示錯誤
+      console.error('無法載入節點數據，請檢查網絡連接');
+      if (showLoading) {
+        loading.value = false;
+      }
+    }
   }
 };
 
@@ -159,81 +377,157 @@ const fetchDeviceMetrics = async (nodeId) => {
   }
 };
 
-// 優化的節點過濾函數（預處理節點數據以提升性能）
-const preprocessNodeForSearch = (node) => {
-  // 預處理並緩存搜索相關的字符串，避免重複轉換
-  if (!node._searchCache) {
-    node._searchCache = {
-      id: String(node.id || '').toLowerCase(),
-      nodeId: String(node.node_id || '').toLowerCase(),
-      nodeIdHex: String(node.node_id_hex || '').toLowerCase(),
-      shortName: String(node.short_name || '').toLowerCase(),
-      longName: String(node.long_name || '').toLowerCase()
+// 構建搜索索引（在數據加載時一次性構建，大幅提升搜索速度）
+const buildSearchIndex = () => {
+  const startTime = performance.now();
+  searchIndex.value = nodes.value.map(node => {
+    // 一次性構建所有搜索字段的組合字符串，使用特殊分隔符避免誤匹配
+    const searchText = [
+      String(node.id || ''),
+      String(node.node_id || ''),
+      String(node.node_id_hex || ''),
+      String(node.short_name || ''),
+      String(node.long_name || '')
+    ].join('\0').toLowerCase(); // 使用 \0 作為分隔符，避免跨字段匹配
+
+    return {
+      node,
+      searchText
     };
-  }
-  return node._searchCache;
+  });
+  const endTime = performance.now();
+  console.log(`搜索索引構建完成，耗時: ${(endTime - startTime).toFixed(2)}ms，節點數: ${searchIndex.value.length}`);
 };
 
-// 實際執行搜索的函數
+// 實際執行搜索的函數（極速優化版本 - 使用預構建索引）
 const performSearch = async (query) => {
   // 取消之前的搜索（如果還在進行）
   if (searchAbortController) {
     searchAbortController.abort();
   }
+  if (searchAnimationFrame) {
+    cancelAnimationFrame(searchAnimationFrame);
+    searchAnimationFrame = null;
+  }
+
   searchAbortController = new AbortController();
 
   // 如果查詢為空，立即清空結果
   if (!query) {
+    isSearching.value = false;
     filteredNodes.value = [];
     selectedNodeId.value = '';
     return;
   }
 
-  const queryLower = query.toLowerCase();
-  const results = [];
+  // 如果索引未構建，先構建索引
+  if (searchIndex.value.length === 0 && nodes.value.length > 0) {
+    buildSearchIndex();
+  }
 
-  // 使用 requestIdleCallback 或 setTimeout 將搜索推遲到下一個事件循環
-  // 這樣可以讓 UI 先響應用戶輸入
+  // 設置搜索狀態
+  isSearching.value = true;
+  const queryLower = query.toLowerCase();
+  const queryLength = queryLower.length;
+  const results = [];
+  const startTime = performance.now();
+
+  // 使用 nextTick 確保 UI 更新
   await nextTick();
 
   // 檢查是否已被取消
   if (searchAbortController.signal.aborted) {
+    isSearching.value = false;
     return;
   }
 
-  // 分批處理節點，避免長時間阻塞主線程
-  const batchSize = 100;
-  const totalNodes = nodes.value.length;
+  // 極速搜索：直接遍歷預構建的索引，使用單一字符串匹配
+  const totalItems = searchIndex.value.length;
+  const queryLen = queryLower.length;
 
-  for (let i = 0; i < totalNodes; i += batchSize) {
-    // 檢查是否已被取消
-    if (searchAbortController.signal.aborted) {
-      return;
-    }
+  // 根據數據量決定是否使用分批處理
+  const useBatching = totalItems > 10000; // 超過10000個節點才使用分批處理
+  const batchSize = 2000; // 增大批次大小以減少開銷
 
-    const batch = nodes.value.slice(i, i + batchSize);
+  if (useBatching) {
+    // 大量數據時使用分批處理
+    const processBatch = (startIndex) => {
+      if (searchAbortController.signal.aborted) {
+        isSearching.value = false;
+        return;
+      }
 
-    for (const node of batch) {
-      const cache = preprocessNodeForSearch(node);
+      const endIndex = Math.min(startIndex + batchSize, totalItems);
+      const index = searchIndex.value;
 
-      // 快速匹配檢查
-      if (cache.id.includes(queryLower) ||
-        cache.nodeId.includes(queryLower) ||
-        cache.nodeIdHex.includes(queryLower) ||
-        cache.shortName.includes(queryLower) ||
-        cache.longName.includes(queryLower)) {
-        results.push(node);
+      // 使用 for 循環，直接訪問數組，避免額外變量
+      for (let i = startIndex; i < endIndex; i++) {
+        if (searchAbortController.signal.aborted) {
+          isSearching.value = false;
+          return;
+        }
+
+        // 直接使用 indexOf，比 includes 稍快
+        if (index[i].searchText.indexOf(queryLower) !== -1) {
+          results.push(index[i].node);
+        }
+      }
+
+      // 如果還有更多項目要處理，繼續下一批
+      if (endIndex < totalItems) {
+        searchAnimationFrame = requestAnimationFrame(() => {
+          processBatch(endIndex);
+        });
+      } else {
+        // 所有項目處理完成
+        finishSearch(results, query, startTime);
+      }
+    };
+
+    processBatch(0);
+  } else {
+    // 小量數據時直接一次性處理（最快）
+    // 預先獲取數組引用，避免重複訪問
+    const index = searchIndex.value;
+    const len = totalItems;
+
+    // 優化：對於非常短的查詢，可以使用更激進的優化
+    if (queryLen === 1) {
+      // 單字符查詢：使用更簡單的匹配
+      for (let i = 0; i < len; i++) {
+        if (searchAbortController.signal.aborted) {
+          isSearching.value = false;
+          return;
+        }
+        // 對於單字符，直接檢查第一個字符可能更快，但這裡保持簡單
+        if (index[i].searchText.indexOf(queryLower) !== -1) {
+          results.push(index[i].node);
+        }
+      }
+    } else {
+      // 多字符查詢：標準匹配
+      for (let i = 0; i < len; i++) {
+        if (searchAbortController.signal.aborted) {
+          isSearching.value = false;
+          return;
+        }
+        // 使用 indexOf 比 includes 稍快
+        if (index[i].searchText.indexOf(queryLower) !== -1) {
+          results.push(index[i].node);
+        }
       }
     }
 
-    // 每處理一批後，讓出控制權給瀏覽器，避免阻塞 UI
-    if (i + batchSize < totalNodes) {
-      await new Promise(resolve => setTimeout(resolve, 0));
-    }
+    // 立即完成搜索
+    finishSearch(results, query, startTime);
   }
+};
 
+// 完成搜索並更新結果
+const finishSearch = (results, query, startTime) => {
   // 檢查是否已被取消
   if (searchAbortController.signal.aborted) {
+    isSearching.value = false;
     return;
   }
 
@@ -243,16 +537,47 @@ const performSearch = async (query) => {
     results.sort((a, b) => {
       const aName = a.long_name || a.short_name || '';
       const bName = b.long_name || b.short_name || '';
-      return aName.localeCompare(bName);
+      return aName.localeCompare(bName, 'zh-CN', { numeric: true });
     });
   }
 
-  // 更新結果
-  filteredNodes.value = results;
-  console.log(`搜尋 "${query}" 找到 ${results.length} 個節點`);
+  // 使用 requestAnimationFrame 來批量更新 DOM
+  searchAnimationFrame = requestAnimationFrame(() => {
+    filteredNodes.value = results;
+    isSearching.value = false;
+    const endTime = performance.now();
+    const duration = (endTime - startTime).toFixed(2);
+    console.log(`搜尋 "${query}" 找到 ${results.length} 個節點，耗時: ${duration}ms`);
+    searchAnimationFrame = null;
+  });
 };
 
-// 搜尋處理（帶防抖）
+// 清除搜尋
+const clearSearch = () => {
+  searchQuery.value = '';
+  filteredNodes.value = [];
+  selectedNodeId.value = '';
+  isSearching.value = false;
+
+  // 清除計時器
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+    searchTimeout = null;
+  }
+
+  // 取消正在進行的搜索
+  if (searchAbortController) {
+    searchAbortController.abort();
+  }
+
+  // 取消動畫幀
+  if (searchAnimationFrame) {
+    cancelAnimationFrame(searchAnimationFrame);
+    searchAnimationFrame = null;
+  }
+};
+
+// 搜尋處理（帶防抖，優化版本）
 const handleSearch = () => {
   const query = searchQuery.value.trim();
 
@@ -265,17 +590,30 @@ const handleSearch = () => {
   if (!query) {
     filteredNodes.value = [];
     selectedNodeId.value = '';
+    isSearching.value = false;
     if (searchAbortController) {
       searchAbortController.abort();
+    }
+    if (searchAnimationFrame) {
+      cancelAnimationFrame(searchAnimationFrame);
+      searchAnimationFrame = null;
     }
     return;
   }
 
-  // 設置防抖：等待用戶停止輸入 300ms 後才執行搜索
+  // 動態調整防抖時間：由於搜索速度大幅提升，可以縮短防抖時間
+  const debounceTime = query.length <= 1 ? 100 : query.length <= 2 ? 150 : 200;
+
+  // 設置防抖：等待用戶停止輸入後才執行搜索
   searchTimeout = setTimeout(() => {
     performSearch(query);
-  }, 300);
+  }, debounceTime);
 };
+
+// 計算要顯示的節點（虛擬滾動優化）
+const displayedNodes = computed(() => {
+  return filteredNodes.value.slice(0, maxDisplayedResults.value);
+});
 
 // 打開節點 drawer
 const openNodeDrawer = (node) => {
@@ -482,19 +820,62 @@ const renderNodes = () => {
   // 為每個節點創建標記
   validNodes.forEach((node, index) => {
     try {
-      // 根據 MQTT 連接狀態決定顏色
-      const hasConnection = node.mqtt_connection_state_updated_at !== null &&
-        node.mqtt_connection_state_updated_at !== undefined &&
-        node.mqtt_connection_state_updated_at !== '';
-      const markerColor = hasConnection ? '#15b500ff' : '#0015d6ff'; // 綠色：有連接，藍色：無連接
+      // 固定使用藍色
+      const markerColor = '#0015d6ff'; // 固定藍色
+      const shortName = node.short_name || '';
 
-      const marker = L.circleMarker([node.latitude, node.longitude], {
-        radius: 7,
-        fillColor: markerColor,
-        color: '#FFFFFF',
-        weight: 1,
-        opacity: 1,
-        fillOpacity: 1
+      // 從 node_id_hex 獲取最後 6 個字元作為 RGB 顏色
+      const nodeIdHex = node.node_id_hex || '';
+      const bgColorHex = nodeIdHex.length >= 6
+        ? '#' + nodeIdHex.slice(-6)
+        : '#ffffff'; // 如果沒有 node_id_hex，使用白色
+
+      // 判斷背景顏色是否為深色，以決定文字顏色
+      const isDarkBg = isDarkColor(bgColorHex);
+      const textColor = isDarkBg ? '#ffffff' : '#333333';
+
+      // 創建自定義圖標，包含圓形標記和上方文本
+      // 如果有 short_name，顯示文本；否則只顯示圓形
+      const hasShortName = shortName && shortName.trim() !== '';
+      const textHtml = hasShortName ? `
+        <div style="
+          font-size: 10px; 
+          color: ${textColor}; 
+          background: ${bgColorHex}; 
+          padding: 1px 4px; 
+          border-radius: 3px; 
+          margin-bottom: 2px;
+          white-space: nowrap;
+          text-shadow: ${isDarkBg ? '0 0 2px rgba(0,0,0,0.5)' : '0 0 2px white, 0 0 2px white'};
+          font-weight: 500;
+          line-height: 1.2;
+          max-width: 60px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        ">${shortName}</div>
+      ` : '';
+
+      const icon = L.divIcon({
+        className: 'custom-node-marker',
+        html: `
+          <div style="display: flex; flex-direction: column; align-items: center; pointer-events: none;">
+            ${textHtml}
+            <div style="
+              width: 14px; 
+              height: 14px; 
+              border-radius: 50%; 
+              background-color: ${markerColor}; 
+              border: 2px solid #FFFFFF; 
+              box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            "></div>
+          </div>
+        `,
+        iconSize: hasShortName ? [50, 30] : [20, 20], // 有文本時需要更多空間
+        iconAnchor: hasShortName ? [25, 22] : [10, 10] // 錨點在圓形中心
+      });
+
+      const marker = L.marker([node.latitude, node.longitude], {
+        icon: icon
       });
 
       // 點擊標記時打開 drawer
@@ -725,9 +1106,15 @@ onMounted(async () => {
   // 載入收藏列表
   loadFavorites();
 
-  // 獲取並渲染節點
-  await fetchNodes();
+  // 獲取並渲染節點（使用緩存機制）
+  await fetchNodes(true, true);
 });
+
+// 手動刷新節點數據（強制從 API 獲取最新數據）
+const refreshNodes = async () => {
+  console.log('手動刷新節點數據...');
+  await fetchNodes(false, true); // 不使用緩存，強制從 API 獲取
+};
 
 // 清理
 onUnmounted(() => {
@@ -739,6 +1126,12 @@ onUnmounted(() => {
   // 清除地圖狀態保存計時器
   if (mapStateSaveTimeout) {
     clearTimeout(mapStateSaveTimeout);
+  }
+
+  // 取消動畫幀
+  if (searchAnimationFrame) {
+    cancelAnimationFrame(searchAnimationFrame);
+    searchAnimationFrame = null;
   }
 
   // 取消正在進行的搜索
@@ -931,9 +1324,16 @@ onUnmounted(() => {
   height: 100%;
 }
 
+.search-input-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
 .search-input {
   width: 100%;
-  padding: 12px 16px;
+  padding: 12px 40px 12px 16px;
   border: 2px solid #e0e0e0;
   border-radius: 8px;
   font-size: 15px;
@@ -941,6 +1341,40 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   background: white;
   color: #000000;
+}
+
+.clear-button {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  padding: 0;
+  z-index: 10;
+}
+
+.clear-button:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #666;
+}
+
+.clear-button:active {
+  background: rgba(0, 0, 0, 0.1);
+  transform: translateY(-50%) scale(0.95);
+}
+
+.clear-button .el-icon {
+  font-size: 16px;
 }
 
 .search-input:focus {
@@ -986,16 +1420,30 @@ onUnmounted(() => {
 .results-list {
   overflow-y: auto;
   flex: 1;
+  /* 優化滾動性能 */
+  will-change: scroll-position;
+  contain: layout style paint;
+}
+
+.results-footer {
+  padding: 10px 16px;
+  background: #f8f9fa;
+  color: #666;
+  font-size: 12px;
+  text-align: center;
+  border-top: 1px solid #e9ecef;
 }
 
 .result-item {
   padding: 12px 16px;
   border-bottom: 1px solid #e9ecef;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  /* 優化渲染性能 */
+  contain: layout style;
 }
 
 .result-item:hover {
@@ -1103,7 +1551,17 @@ onUnmounted(() => {
 
   .search-input {
     font-size: 16px;
-    padding: 14px 18px;
+    padding: 14px 45px 14px 18px;
+  }
+
+  .clear-button {
+    right: 10px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .clear-button .el-icon {
+    font-size: 18px;
   }
 
   .search-results {
@@ -1150,7 +1608,19 @@ onUnmounted(() => {
 
   .search-input {
     font-size: 17px;
+    padding: 14px 45px 14px 18px;
   }
 
+}
+
+/* 自定義節點標記樣式 */
+:deep(.custom-node-marker) {
+  background: transparent !important;
+  border: none !important;
+  text-align: center;
+}
+
+:deep(.custom-node-marker div) {
+  pointer-events: none;
 }
 </style>
