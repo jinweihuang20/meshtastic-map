@@ -55,12 +55,12 @@
                   <div v-if="getLatestMetric(node.node_id).channel_utilization !== undefined" class="info-row">
                     <span class="label">頻道利用率:</span>
                     <span class="value">{{ parseFloat(getLatestMetric(node.node_id).channel_utilization || 0).toFixed(1)
-                    }}%</span>
+                      }}%</span>
                   </div>
                   <div v-if="getLatestMetric(node.node_id).air_util_tx !== undefined" class="info-row">
                     <span class="label">空中傳輸率:</span>
                     <span class="value">{{ parseFloat(getLatestMetric(node.node_id).air_util_tx || 0).toFixed(1)
-                    }}%</span>
+                      }}%</span>
                   </div>
                   <div v-if="getLatestMetric(node.node_id).updated_at" class="info-row">
                     <span class="label">更新時間:</span>
@@ -372,6 +372,7 @@ defineExpose({
 .favorites-container {
   width: 100%;
   flex: 1;
+  margin-top: 8px;
   padding-left: 0;
   padding-right: 0;
   padding-bottom: 16px;
