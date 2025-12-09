@@ -455,7 +455,8 @@ const selectNode = (nodeId) => {
 
 // 緩存圖標創建函數，避免重複計算
 const createNodeIcon = (node) => {
-  const markerColor = '#0015d6ff';
+  // 根據地圖主題設置標記顏色：深色模式使用亮綠色，淺色模式使用藍色
+  const markerColor = isDarkMode.value ? '#00ff88' : '#0015d6ff';
   const shortName = node.short_name || '';
   const nodeIdHex = node.node_id_hex || '';
   const bgColorHex = nodeIdHex.length >= 6 ? '#' + nodeIdHex.slice(-6) : '#ffffff';
@@ -498,6 +499,37 @@ const createNodeIcon = (node) => {
     iconSize: [50, 50],
     iconAnchor: hasShortName ? [25, 22] : [10, 10]
   });
+};
+
+// 更新所有標記的顏色（性能優化：直接修改 DOM，不重新渲染）
+const updateMarkersColor = () => {
+  const newColor = isDarkMode.value ? '#00ff88' : '#0015d6ff';
+  let updatedCount = 0;
+  
+  // 遍歷所有標記，直接更新顏色
+  markers.value.forEach(marker => {
+    if (marker && marker.getElement) {
+      try {
+        const element = marker.getElement();
+        if (element) {
+          // 找到標記中的圓點元素（最後一個 div，有 border-radius: 50%）
+          const container = element.querySelector('div[style*="flex-direction: column"]');
+          if (container) {
+            const dotElement = container.lastElementChild;
+            if (dotElement && dotElement.style.borderRadius === '50%') {
+              dotElement.style.backgroundColor = newColor;
+              updatedCount++;
+            }
+          }
+        }
+      } catch (error) {
+        // 忽略個別標記的錯誤，繼續處理其他標記
+        console.warn('更新標記顏色時出錯:', error);
+      }
+    }
+  });
+  
+  console.log(`標記顏色已更新: ${updatedCount} 個標記，顏色: ${newColor} (${isDarkMode.value ? '深色模式' : '淺色模式'})`);
 };
 
 // 在地圖上渲染節點（優化版本 - 使用分批處理）
@@ -555,8 +587,8 @@ const renderNodes = () => {
   markerClusterGroup.value = L.markerClusterGroup({
     chunkedLoading: true,
     chunkDelay: 50, // 每批處理延遲，減少阻塞
-    maxClusterRadius: 120, // 擴大聚集範圍（從 80 增加到 120）
-    disableClusteringAtZoom: 10, // 在更高縮放級別才禁用聚集（從 8 增加到 10）
+    maxClusterRadius: 80,
+    disableClusteringAtZoom: 10,
     spiderfyOnMaxZoom: true,
     showCoverageOnHover: false,
     zoomToBoundsOnClick: true,
@@ -772,6 +804,9 @@ const toggleMapTheme = () => {
 
   currentTileLayer.value.addTo(map.value);
   console.log('地圖主題已切換為:', isDarkMode.value ? '深色模式' : '淺色模式');
+  
+  // 直接更新標記顏色（性能優化：不重新渲染）
+  updateMarkersColor();
 };
 
 // 初始化地圖
