@@ -555,8 +555,8 @@ const renderNodes = () => {
   markerClusterGroup.value = L.markerClusterGroup({
     chunkedLoading: true,
     chunkDelay: 50, // 每批處理延遲，減少阻塞
-    maxClusterRadius: 80,
-    disableClusteringAtZoom: 8,
+    maxClusterRadius: 120, // 擴大聚集範圍（從 80 增加到 120）
+    disableClusteringAtZoom: 10, // 在更高縮放級別才禁用聚集（從 8 增加到 10）
     spiderfyOnMaxZoom: true,
     showCoverageOnHover: false,
     zoomToBoundsOnClick: true,
