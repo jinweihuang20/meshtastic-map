@@ -501,27 +501,20 @@ const createNodeIcon = (node) => {
   });
 };
 
-// 更新所有標記的顏色（性能優化：直接修改 DOM，不重新渲染）
+// 更新所有標記的顏色（性能優化：更新圖標，包括視圖外的標記）
 const updateMarkersColor = () => {
   const newColor = isDarkMode.value ? '#00ff88' : '#0015d6ff';
   let updatedCount = 0;
   
-  // 遍歷所有標記，直接更新顏色
-  markers.value.forEach(marker => {
-    if (marker && marker.getElement) {
+  // 遍歷所有節點，通過 nodeMarkerMap 找到對應的標記並更新圖標
+  nodes.value.forEach(node => {
+    const marker = nodeMarkerMap.value.get(node.node_id);
+    if (marker) {
       try {
-        const element = marker.getElement();
-        if (element) {
-          // 找到標記中的圓點元素（最後一個 div，有 border-radius: 50%）
-          const container = element.querySelector('div[style*="flex-direction: column"]');
-          if (container) {
-            const dotElement = container.lastElementChild;
-            if (dotElement && dotElement.style.borderRadius === '50%') {
-              dotElement.style.backgroundColor = newColor;
-              updatedCount++;
-            }
-          }
-        }
+        // 重新創建圖標（使用當前主題顏色）
+        const newIcon = createNodeIcon(node);
+        marker.setIcon(newIcon);
+        updatedCount++;
       } catch (error) {
         // 忽略個別標記的錯誤，繼續處理其他標記
         console.warn('更新標記顏色時出錯:', error);
