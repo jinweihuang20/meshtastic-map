@@ -13,7 +13,7 @@
     <template v-else>
       <!-- 快速導航條（僅移動端顯示） -->
       <div v-if="windowWidth < 768" class="quick-nav">
-        <div ref="quickNavScroll" class="quick-nav-scroll">
+        <div ref="quickNavScroll" class="quick-nav-scroll" @scroll="handleNavScroll">
           <template v-for="(node, index) in favoriteNodes" :key="node.node_id">
             <!-- 插入位置指示器（在項目前面） -->
             <div v-if="dragOverIndex === index && insertPosition === 'before' && draggedIndex !== index"
@@ -100,6 +100,7 @@ const navTouchStartTime = ref(0);
 const longPressTimer = ref(null);
 const isLongPress = ref(false);
 const touchStartElement = ref(null);
+const touchMoveHistory = ref([]); // 記錄移動歷史，用於檢測滾動速度
 
 // 監聽窗口大小變化
 const handleResize = () => {
@@ -293,6 +294,14 @@ const scrollToCard = async (index) => {
   setTimeout(() => {
     isScrolling.value = false;
   }, 500);
+};
+
+// 處理快速導航條滾動事件
+const handleNavScroll = () => {
+  // 如果用戶正在滾動快速導航條，標記為滾動狀態
+  if (touchDragStartIndex.value !== null && !isLongPress.value) {
+    isScrollingNav.value = true;
+  }
 };
 
 // 滾動快速導航條，使指定索引的導航項顯示在最左方
@@ -492,9 +501,32 @@ const handleNavTouchStart = (index, event) => {
   dragOverIndex.value = null;
   insertPosition.value = null;
   touchStartElement.value = event.target;
+  touchMoveHistory.value = []; // 重置移動歷史
+  isScrollingNav.value = false;
+  
+  // 記錄初始滾動位置
+  const initialScrollLeft = quickNavScroll.value?.scrollLeft || 0;
+  const initialScrollTime = Date.now();
   
   // 設置長按計時器（手機端300ms，更友好）
   longPressTimer.value = setTimeout(() => {
+    // 檢查是否在長按期間發生了滾動
+    const currentScrollLeft = quickNavScroll.value?.scrollLeft || 0;
+    const scrollDiff = Math.abs(currentScrollLeft - initialScrollLeft);
+    const timeSinceStart = Date.now() - initialScrollTime;
+    
+    // 如果滾動了超過5px，或者檢測到滾動狀態，取消長按
+    if (scrollDiff > 5 || isScrollingNav.value) {
+      longPressTimer.value = null;
+      return;
+    }
+    
+    // 再次檢查是否仍在觸摸（防止用戶已經放開）
+    if (touchDragStartIndex.value === null || touchDragStartIndex.value !== index) {
+      longPressTimer.value = null;
+      return;
+    }
+    
     isLongPress.value = true;
     // 觸覺反饋（如果支持）
     if (navigator.vibrate) {
@@ -515,13 +547,39 @@ const handleNavTouchMove = (event) => {
   const touch = event.touches[0];
   if (!touch) return;
   
+  const currentTime = Date.now();
   const deltaX = touch.clientX - touchDragStartX.value;
   const deltaY = touch.clientY - touchDragStartY.value;
   const absDeltaX = Math.abs(deltaX);
   const absDeltaY = Math.abs(deltaY);
   
+  // 記錄移動歷史（用於檢測滾動速度）
+  touchMoveHistory.value.push({
+    x: touch.clientX,
+    y: touch.clientY,
+    time: currentTime
+  });
+  
+  // 只保留最近200ms的歷史
+  const recentHistory = touchMoveHistory.value.filter(h => currentTime - h.time < 200);
+  touchMoveHistory.value = recentHistory;
+  
+  // 檢測滾動：檢查快速導航條是否在滾動
+  // 通過比較觸摸位置和項目位置的變化來判斷
+  if (touchMoveHistory.value.length >= 2) {
+    const firstPoint = touchMoveHistory.value[0];
+    const lastPoint = touchMoveHistory.value[touchMoveHistory.value.length - 1];
+    const timeDiff = lastPoint.time - firstPoint.time;
+    const distance = Math.abs(lastPoint.x - firstPoint.x);
+    
+    // 如果移動速度太快（超過0.25px/ms），視為快速滾動
+    if (timeDiff > 0 && distance / timeDiff > 0.25) {
+      isScrollingNav.value = true;
+    }
+  }
+  
   // 如果移動距離較大，取消長按計時器（可能是滾動）
-  if (absDeltaX > 8 || absDeltaY > 8) {
+  if (absDeltaX > 5 || absDeltaY > 5) {
     if (longPressTimer.value) {
       clearTimeout(longPressTimer.value);
       longPressTimer.value = null;
@@ -535,13 +593,30 @@ const handleNavTouchMove = (event) => {
     if (absDeltaY > absDeltaX * 1.2) {
       return; // 允許正常滾動
     }
+    
+    // 如果檢測到快速水平移動（可能是滾動），不觸發拖曳
+    if (touchMoveHistory.value.length >= 2) {
+      const firstPoint = touchMoveHistory.value[0];
+      const lastPoint = touchMoveHistory.value[touchMoveHistory.value.length - 1];
+      const timeDiff = lastPoint.time - firstPoint.time;
+      const distance = Math.abs(lastPoint.x - firstPoint.x);
+      
+      // 如果移動速度太快（超過0.3px/ms），視為滾動
+      if (timeDiff > 0 && distance / timeDiff > 0.3) {
+        isScrollingNav.value = true;
+        return; // 允許正常滾動
+      }
+    }
   }
   
-  // 手機端：降低拖曳觸發條件，讓拖曳更容易
-  // 長按後允許拖曳，或者水平移動超過8px且明顯大於垂直移動
-  const canDrag = isLongPress.value || (absDeltaX > 8 && absDeltaX > absDeltaY * 1.5);
+  // 只有在長按後才允許拖曳（移除快速移動觸發拖曳的邏輯）
+  // 並且確保不是在滾動狀態
+  if (!isLongPress.value || isScrollingNav.value) {
+    return;
+  }
   
-  if (canDrag && absDeltaX > 3 && absDeltaX > absDeltaY * 1.2) {
+  // 確保是水平移動為主
+  if (absDeltaX > 3 && absDeltaX > absDeltaY * 1.2) {
     // 防止快速導航條滾動
     if (quickNavScroll.value && !isDragging.value) {
       quickNavScroll.value.style.overflowX = 'hidden';
@@ -621,11 +696,22 @@ const handleNavTouchEnd = (event) => {
     item.classList.remove('long-press-active');
   }
   
+  // 如果檢測到是滾動操作，不處理拖曳
+  if (isScrollingNav.value) {
+    touchDragStartIndex.value = null;
+    isLongPress.value = false;
+    touchStartElement.value = null;
+    touchMoveHistory.value = [];
+    isScrollingNav.value = false;
+    return;
+  }
+  
   // 如果沒有拖曳，可能是點擊或滾動，不處理
   if (!isDragging.value) {
     touchDragStartIndex.value = null;
     isLongPress.value = false;
     touchStartElement.value = null;
+    touchMoveHistory.value = [];
     return;
   }
   
@@ -656,6 +742,8 @@ const handleNavTouchEnd = (event) => {
     isDragging.value = false;
     isLongPress.value = false;
     touchStartElement.value = null;
+    touchMoveHistory.value = [];
+    isScrollingNav.value = false;
   }, 150);
 };
 
