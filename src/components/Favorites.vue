@@ -330,21 +330,39 @@ const scrollNavToItem = (index) => {
 
 // 處理導航項點擊（區分拖曳和點擊）
 const handleNavItemClick = (index, event) => {
-  // 如果正在拖曳或剛剛完成拖曳，不觸發點擊
-  if (isDragging.value || draggedIndex.value !== null) {
+  // 如果正在拖曳，不觸發點擊
+  if (isDragging.value) {
     event.preventDefault();
     event.stopPropagation();
     return;
   }
   
-  // 檢查是否在短時間內（可能是拖曳開始）
+  // 檢查是否剛剛完成拖曳（在短時間內）
   const timeSinceTouchStart = Date.now() - navTouchStartTime.value;
-  if (timeSinceTouchStart < 300) {
-    // 可能是拖曳開始，不觸發點擊
+  if (timeSinceTouchStart < 200 && draggedIndex.value !== null) {
+    // 剛剛完成拖曳，不觸發點擊
+    event.preventDefault();
+    event.stopPropagation();
     return;
   }
   
-  scrollToCard(index);
+  // 檢查是否有明顯的移動（可能是拖曳意圖）
+  if (touchDragStartIndex.value === index) {
+    const deltaX = Math.abs(touchDragStartX.value - (event.clientX || touchDragStartX.value));
+    const deltaY = Math.abs(touchDragStartY.value - (event.clientY || touchDragStartY.value));
+    
+    // 如果移動距離很小（< 5px），視為點擊
+    if (deltaX < 5 && deltaY < 5) {
+      scrollToCard(index);
+    } else {
+      // 有明顯移動，可能是拖曳，不觸發點擊
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  } else {
+    // 正常點擊
+    scrollToCard(index);
+  }
 };
 
 // 拖曳開始
@@ -696,22 +714,48 @@ const handleNavTouchEnd = (event) => {
     item.classList.remove('long-press-active');
   }
   
+  // 計算移動距離
+  const touchEndX = event.changedTouches?.[0]?.clientX || touchDragStartX.value;
+  const touchEndY = event.changedTouches?.[0]?.clientY || touchDragStartY.value;
+  const deltaX = Math.abs(touchEndX - touchDragStartX.value);
+  const deltaY = Math.abs(touchEndY - touchDragStartY.value);
+  const totalMove = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+  
   // 如果檢測到是滾動操作，不處理拖曳
   if (isScrollingNav.value) {
-    touchDragStartIndex.value = null;
-    isLongPress.value = false;
-    touchStartElement.value = null;
-    touchMoveHistory.value = [];
-    isScrollingNav.value = false;
+    // 延遲重置，避免立即觸發點擊
+    setTimeout(() => {
+      touchDragStartIndex.value = null;
+      isLongPress.value = false;
+      touchStartElement.value = null;
+      touchMoveHistory.value = [];
+      isScrollingNav.value = false;
+      draggedIndex.value = null;
+    }, 100);
     return;
   }
   
-  // 如果沒有拖曳，可能是點擊或滾動，不處理
+  // 如果沒有拖曳，可能是點擊或滾動
   if (!isDragging.value) {
-    touchDragStartIndex.value = null;
-    isLongPress.value = false;
-    touchStartElement.value = null;
-    touchMoveHistory.value = [];
+    // 如果移動距離很小（< 8px），可能是點擊，允許點擊事件觸發
+    if (totalMove < 8) {
+      // 立即重置狀態，允許點擊事件
+      touchDragStartIndex.value = null;
+      isLongPress.value = false;
+      touchStartElement.value = null;
+      touchMoveHistory.value = [];
+      draggedIndex.value = null;
+      return;
+    }
+    
+    // 有明顯移動但不是拖曳，延遲重置
+    setTimeout(() => {
+      touchDragStartIndex.value = null;
+      isLongPress.value = false;
+      touchStartElement.value = null;
+      touchMoveHistory.value = [];
+      draggedIndex.value = null;
+    }, 150);
     return;
   }
   
