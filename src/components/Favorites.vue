@@ -21,7 +21,7 @@
         </div>
       </div>
 
-      <div ref="listContainer" class="favorites-container" @scroll="handleScroll">
+      <div ref="listContainer" class="favorites-container" @scroll="handleScroll" @touchstart="handleTouchStart" @touchend="handleTouchEnd" @touchmove="handleTouchMove">
         <div class="favorites-list">
           <div v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setCardRef(el, index)"
             class="favorite-item">
@@ -115,6 +115,14 @@ const navItemRefs = ref([]);
 const activeIndex = ref(0);
 const isScrolling = ref(false);
 const isScrollingNav = ref(false);
+const touchStartX = ref(0);
+const touchStartY = ref(0);
+const touchStartTime = ref(0);
+const touchLastX = ref(0);
+const touchLastTime = ref(0);
+const isTouching = ref(false);
+const scrollTimeout = ref(null);
+const scrollAnimationFrame = ref(null);
 
 // 監聽窗口大小變化
 const handleResize = () => {
@@ -344,21 +352,22 @@ const setNavItemRef = (el, index) => {
   }
 };
 
-// 滾動到指定卡片
+// 滾動到指定卡片（居中顯示）
 const scrollToCard = async (index) => {
-  if (!listContainer.value || !cardRefs.value[index]) return;
+  if (!listContainer.value || !cardRefs.value[index] || windowWidth.value >= 768) return;
 
   isScrolling.value = true;
-  const card = cardRefs.value[index];
   const container = listContainer.value;
-
-  // 計算卡片在容器中的位置
-  const cardRect = card.getBoundingClientRect();
-  const containerRect = container.getBoundingClientRect();
-  const scrollLeft = container.scrollLeft + (cardRect.left - containerRect.left);
+  const containerWidth = container.clientWidth;
+  const cardWidth = containerWidth - 32; // calc(100vw - 32px)
+  const gap = 12;
+  const cardTotalWidth = cardWidth + gap;
+  
+  // 計算該卡片應該居中的位置
+  const targetScrollLeft = index * cardTotalWidth;
 
   container.scrollTo({
-    left: scrollLeft,
+    left: targetScrollLeft,
     behavior: 'smooth'
   });
 
@@ -398,6 +407,153 @@ const scrollNavToItem = (index) => {
   }, 300);
 };
 
+// 處理觸摸開始
+const handleTouchStart = (e) => {
+  if (windowWidth.value >= 768) return;
+  isTouching.value = true;
+  const touch = e.touches[0];
+  touchStartX.value = touch.clientX;
+  touchStartY.value = touch.clientY;
+  touchLastX.value = touch.clientX;
+  touchStartTime.value = Date.now();
+  touchLastTime.value = Date.now();
+  
+  // 清除自動滾動計時器和動畫幀
+  if (scrollTimeout.value) {
+    clearTimeout(scrollTimeout.value);
+    scrollTimeout.value = null;
+  }
+  if (scrollAnimationFrame.value) {
+    cancelAnimationFrame(scrollAnimationFrame.value);
+    scrollAnimationFrame.value = null;
+  }
+};
+
+// 處理觸摸移動
+const handleTouchMove = (e) => {
+  if (windowWidth.value >= 768) return;
+  const touch = e.touches[0];
+  touchLastX.value = touch.clientX;
+  touchLastTime.value = Date.now();
+  
+  // 清除自動滾動計時器和動畫幀
+  if (scrollTimeout.value) {
+    clearTimeout(scrollTimeout.value);
+    scrollTimeout.value = null;
+  }
+  if (scrollAnimationFrame.value) {
+    cancelAnimationFrame(scrollAnimationFrame.value);
+    scrollAnimationFrame.value = null;
+  }
+};
+
+// 處理觸摸結束 - 自動居中最近的卡片
+const handleTouchEnd = (e) => {
+  if (windowWidth.value >= 768 || !listContainer.value) return;
+  
+  isTouching.value = false;
+  
+  // 計算滑動距離和速度
+  const touchEndX = e.changedTouches[0].clientX;
+  const touchEndY = e.changedTouches[0].clientY;
+  const deltaX = touchEndX - touchStartX.value;
+  const deltaY = touchEndY - touchStartY.value;
+  const deltaTime = Date.now() - touchLastTime.value;
+  
+  // 如果是垂直滑動為主，不處理
+  if (Math.abs(deltaY) > Math.abs(deltaX)) {
+    return;
+  }
+  
+  // 計算滑動速度 (px/ms)
+  const velocity = deltaTime > 0 ? Math.abs(deltaX) / deltaTime : 0;
+  
+  // 使用 requestAnimationFrame 優化性能，減少延遲
+  scrollAnimationFrame.value = requestAnimationFrame(() => {
+    // 根據速度決定延遲時間，快速滑動時減少延遲
+    const delay = velocity > 1 ? 50 : 80;
+    scrollTimeout.value = setTimeout(() => {
+      snapToNearestCard(deltaX, velocity);
+      scrollTimeout.value = null;
+    }, delay);
+    scrollAnimationFrame.value = null;
+  });
+};
+
+// 自動居中最近的卡片（支持根據滑動方向和速度調整目標）
+const snapToNearestCard = (deltaX = 0, velocity = 0) => {
+  if (!listContainer.value || isScrolling.value || windowWidth.value >= 768) return;
+  
+  const container = listContainer.value;
+  const scrollLeft = container.scrollLeft;
+  const containerWidth = container.clientWidth;
+  const cardWidth = containerWidth - 32; // calc(100vw - 32px)
+  const gap = 12;
+  const cardTotalWidth = cardWidth + gap;
+  
+  // 計算當前滾動位置對應的卡片索引
+  let currentIndex = Math.round(scrollLeft / cardTotalWidth);
+  
+  // 根據滑動方向和速度調整目標索引
+  // 如果快速向右滑動（deltaX > 0），優先選擇下一個卡片
+  // 如果快速向左滑動（deltaX < 0），優先選擇上一個卡片
+  if (Math.abs(deltaX) > 30 || velocity > 0.5) {
+    if (deltaX > 0 && currentIndex < favoriteNodes.value.length - 1) {
+      // 向右滑動，選擇下一個卡片
+      currentIndex = Math.min(currentIndex + 1, favoriteNodes.value.length - 1);
+    } else if (deltaX < 0 && currentIndex > 0) {
+      // 向左滑動，選擇上一個卡片
+      currentIndex = Math.max(currentIndex - 1, 0);
+    }
+  }
+  
+  const clampedIndex = Math.max(0, Math.min(currentIndex, favoriteNodes.value.length - 1));
+  
+  // 計算該卡片應該居中的位置
+  const targetScrollLeft = clampedIndex * cardTotalWidth;
+  
+  // 如果已經接近目標位置（容差增大），不需要滾動
+  if (Math.abs(scrollLeft - targetScrollLeft) < 10) {
+    activeIndex.value = clampedIndex;
+    scrollNavToItem(clampedIndex);
+    return;
+  }
+  
+  // 平滑滾動到居中位置
+  isScrolling.value = true;
+  
+  // 使用自定義動畫實現更流暢的滾動
+  const startScrollLeft = scrollLeft;
+  const distance = targetScrollLeft - startScrollLeft;
+  const duration = Math.min(Math.abs(distance) * 0.5, 400); // 根據距離調整時長，最多400ms
+  const startTime = Date.now();
+  
+  const animateScroll = () => {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    
+    // 使用 ease-out 緩動函數，讓滾動更自然
+    const easeOut = 1 - Math.pow(1 - progress, 3);
+    const currentScrollLeft = startScrollLeft + distance * easeOut;
+    
+    container.scrollLeft = currentScrollLeft;
+    
+    if (progress < 1) {
+      requestAnimationFrame(animateScroll);
+    } else {
+      isScrolling.value = false;
+      // 確保最終位置精確
+      container.scrollLeft = targetScrollLeft;
+    }
+  };
+  
+  requestAnimationFrame(animateScroll);
+  
+  // 更新活動索引
+  activeIndex.value = clampedIndex;
+  scrollNavToItem(clampedIndex);
+};
+
 // 處理滾動事件，更新活動索引
 const handleScroll = () => {
   if (isScrolling.value || !listContainer.value || windowWidth.value >= 768) return;
@@ -417,6 +573,23 @@ const handleScroll = () => {
     activeIndex.value = clampedIndex;
     // 當活動索引變化時，自動滾動快速導航條，使對應的導航項顯示在最左方
     scrollNavToItem(clampedIndex);
+  }
+  
+  // 如果不是觸摸狀態，在滾動停止後自動居中（使用 requestAnimationFrame 優化）
+  if (!isTouching.value) {
+    if (scrollTimeout.value) {
+      clearTimeout(scrollTimeout.value);
+    }
+    if (scrollAnimationFrame.value) {
+      cancelAnimationFrame(scrollAnimationFrame.value);
+    }
+    scrollAnimationFrame.value = requestAnimationFrame(() => {
+      scrollTimeout.value = setTimeout(() => {
+        snapToNearestCard();
+        scrollTimeout.value = null;
+      }, 100); // 減少延遲時間
+      scrollAnimationFrame.value = null;
+    });
   }
 };
 
@@ -442,6 +615,16 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('storage', handleStorageChange);
   window.removeEventListener('favorites-updated', handleFavoritesUpdated);
+  
+  // 清理計時器和動畫幀
+  if (scrollTimeout.value) {
+    clearTimeout(scrollTimeout.value);
+    scrollTimeout.value = null;
+  }
+  if (scrollAnimationFrame.value) {
+    cancelAnimationFrame(scrollAnimationFrame.value);
+    scrollAnimationFrame.value = null;
+  }
 });
 
 // 處理 localStorage 變化事件（跨標籤頁）
@@ -493,6 +676,10 @@ defineExpose({
   touch-action: pan-x;
   /* 確保可以滾動 */
   overscroll-behavior: contain;
+  /* 優化滾動性能 */
+  will-change: scroll-position;
+  /* 平滑滾動 */
+  scroll-behavior: smooth;
 }
 
 .favorites-header {
@@ -625,6 +812,8 @@ defineExpose({
   padding-left: 16px;
   padding-right: 16px;
   min-width: 100%;
+  /* 優化滾動性能 */
+  will-change: transform;
 }
 
 .favorite-item {
@@ -646,6 +835,10 @@ defineExpose({
   /* 防止意外觸發縮放 */
   -webkit-user-select: none;
   user-select: none;
+  /* 優化渲染性能 */
+  will-change: transform;
+  /* 啟用硬件加速 */
+  transform: translateZ(0);
 }
 
 /* 節點信息區 - 左側 */
