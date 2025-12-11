@@ -1,5 +1,5 @@
 <template>
-  <div class="favorite-item">
+  <div class="favorite-item" :class="{ 'card-active': cardIndex === activeIndex }" :style="cardStyle">
     <!-- 左側：節點信息 -->
     <div class="node-info-section">
       <div class="node-header">
@@ -90,6 +90,14 @@ const props = defineProps({
   chartHeight: {
     type: String,
     default: '280px'
+  },
+  cardIndex: {
+    type: Number,
+    default: 0
+  },
+  activeIndex: {
+    type: Number,
+    default: 0
   }
 });
 
@@ -101,6 +109,41 @@ const latestMetric = computed(() => {
     return props.metrics[props.metrics.length - 1];
   }
   return null;
+});
+
+// 計算卡片與活動卡片的距離
+const distanceFromActive = computed(() => {
+  return Math.abs(props.cardIndex - props.activeIndex);
+});
+
+// 計算卡片的透明度和縮放
+const cardStyle = computed(() => {
+  const distance = distanceFromActive.value;
+  
+  if (distance === 0) {
+    // 活動卡片：完全不透明，正常大小
+    return {
+      opacity: 1,
+      transform: 'scale(1) translateZ(0)',
+      zIndex: 10
+    };
+  } else if (distance === 1) {
+    // 相鄰卡片：稍微透明，稍微縮小
+    return {
+      opacity: 0.6,
+      transform: 'scale(0.92) translateZ(0)',
+      zIndex: 5
+    };
+  } else {
+    // 更遠的卡片：更透明，更小
+    const opacity = Math.max(0.3, 0.6 - (distance - 1) * 0.15);
+    const scale = Math.max(0.85, 0.92 - (distance - 1) * 0.05);
+    return {
+      opacity: opacity,
+      transform: `scale(${scale}) translateZ(0)`,
+      zIndex: 1
+    };
+  }
 });
 
 // 格式化座標
@@ -179,12 +222,13 @@ const handleViewOnMap = () => {
   border: 0.5px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
-  width: calc(100vw - 16px);
-  min-width: calc(100vw - 16px);
-  max-width: calc(100vw - 16px);
+  /* 卡片寬度：容器寬度減去左右各 40px，讓左右兩側可以顯示部分內容 */
+  width: calc(100vw - 80px);
+  min-width: calc(100vw - 80px);
+  max-width: calc(100vw - 80px);
   flex-shrink: 0;
   position: relative;
   margin-bottom: 0;
@@ -199,11 +243,24 @@ const handleViewOnMap = () => {
   -webkit-user-select: none;
   user-select: none;
   /* 優化渲染性能 */
-  will-change: transform;
+  will-change: transform, opacity;
   /* 啟用硬件加速 */
   transform: translateZ(0);
   /* 確保內容不會溢出 */
   min-height: 0;
+  /* 翻書效果：默認狀態 */
+  opacity: 0.6;
+  transform: scale(0.92) translateZ(0);
+}
+
+.favorite-item.card-active {
+  opacity: 1;
+  transform: scale(1) translateZ(0);
+  z-index: 10;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 /* 節點信息區 - 左側 */

@@ -54,7 +54,8 @@
         <div class="favorites-list">
           <FavoriteNodeCard v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setCardRef(el, index)"
             :node="node" :metrics="nodeMetrics[node.node_id] || []" :loading-metrics="loadingMetrics[node.node_id] || false"
-            :chart-height="chartHeight" @remove="removeFavorite" @view-on-map="viewOnMap" />
+            :chart-height="chartHeight" :card-index="index" :active-index="activeIndex"
+            @remove="removeFavorite" @view-on-map="viewOnMap" />
         </div>
       </div>
     </template>
@@ -272,15 +273,21 @@ const scrollToCard = async (index) => {
   isScrolling.value = true;
   const container = listContainer.value;
   const containerWidth = container.clientWidth;
-  const cardWidth = containerWidth - 32; // calc(100vw - 32px)
+  const cardWidth = containerWidth - 80; // calc(100vw - 80px)，左右各留 40px
   const gap = 12;
-  const cardTotalWidth = cardWidth + gap;
+  const paddingLeft = 40; // .favorites-list 的 padding-left
   
-  // 計算該卡片應該居中的位置
-  const targetScrollLeft = index * cardTotalWidth;
+  // 計算卡片左邊緣位置
+  const cardLeftEdge = paddingLeft + index * (cardWidth + gap);
+  // 計算卡片中心位置
+  const cardCenter = cardLeftEdge + cardWidth / 2;
+  // 計算容器中心位置
+  const containerCenter = containerWidth / 2;
+  // 計算目標滾動位置（讓卡片中心對齊容器中心）
+  const targetScrollLeft = cardCenter - containerCenter;
 
   container.scrollTo({
-    left: targetScrollLeft,
+    left: Math.max(0, targetScrollLeft),
     behavior: 'smooth'
   });
 
@@ -290,7 +297,16 @@ const scrollToCard = async (index) => {
   // 同時滾動快速導航條，使對應的導航項顯示在最左方
   scrollNavToItem(index);
 
-  // 等待滾動完成後重置標記
+  // 等待滾動完成後重置標記，並清除可能觸發的 snap 計時器
+  if (scrollTimeout.value) {
+    clearTimeout(scrollTimeout.value);
+    scrollTimeout.value = null;
+  }
+  if (scrollAnimationFrame.value) {
+    cancelAnimationFrame(scrollAnimationFrame.value);
+    scrollAnimationFrame.value = null;
+  }
+  
   setTimeout(() => {
     isScrolling.value = false;
   }, 500);
@@ -914,12 +930,15 @@ const snapToNearestCard = (deltaX = 0, velocity = 0) => {
   const container = listContainer.value;
   const scrollLeft = container.scrollLeft;
   const containerWidth = container.clientWidth;
-  const cardWidth = containerWidth - 32; // calc(100vw - 32px)
+  const cardWidth = containerWidth - 80; // calc(100vw - 80px)，左右各留 40px
   const gap = 12;
   const cardTotalWidth = cardWidth + gap;
+  const paddingLeft = 40; // .favorites-list 的 padding-left
   
   // 計算當前滾動位置對應的卡片索引
-  let currentIndex = Math.round(scrollLeft / cardTotalWidth);
+  // 考慮 padding-left，計算實際的卡片位置
+  const adjustedScrollLeft = scrollLeft + paddingLeft;
+  let currentIndex = Math.round(adjustedScrollLeft / cardTotalWidth);
   
   // 根據滑動方向和速度調整目標索引
   // 如果快速向右滑動（deltaX > 0），優先選擇下一個卡片
@@ -936,8 +955,14 @@ const snapToNearestCard = (deltaX = 0, velocity = 0) => {
   
   const clampedIndex = Math.max(0, Math.min(currentIndex, favoriteNodes.value.length - 1));
   
-  // 計算該卡片應該居中的位置
-  const targetScrollLeft = clampedIndex * cardTotalWidth;
+  // 計算卡片左邊緣位置
+  const cardLeftEdge = paddingLeft + clampedIndex * (cardWidth + gap);
+  // 計算卡片中心位置
+  const cardCenter = cardLeftEdge + cardWidth / 2;
+  // 計算容器中心位置
+  const containerCenter = containerWidth / 2;
+  // 計算目標滾動位置（讓卡片中心對齊容器中心）
+  const targetScrollLeft = cardCenter - containerCenter;
   
   // 如果已經接近目標位置（容差增大），不需要滾動
   if (Math.abs(scrollLeft - targetScrollLeft) < 10) {
@@ -970,7 +995,7 @@ const snapToNearestCard = (deltaX = 0, velocity = 0) => {
     } else {
       isScrolling.value = false;
       // 確保最終位置精確
-      container.scrollLeft = targetScrollLeft;
+      container.scrollLeft = Math.max(0, targetScrollLeft);
     }
   };
   
@@ -988,12 +1013,14 @@ const handleScroll = () => {
   const container = listContainer.value;
   const scrollLeft = container.scrollLeft;
   const containerWidth = container.clientWidth;
-  const cardWidth = containerWidth - 32; // calc(100vw - 32px)
+  const cardWidth = containerWidth - 80; // calc(100vw - 80px)，左右各留 40px
   const gap = 12;
   const cardTotalWidth = cardWidth + gap;
+  const paddingLeft = 40; // .favorites-list 的 padding-left
 
-  // 計算當前可見的卡片索引
-  const currentIndex = Math.round(scrollLeft / cardTotalWidth);
+  // 計算當前可見的卡片索引（考慮 padding-left）
+  const adjustedScrollLeft = scrollLeft + paddingLeft;
+  const currentIndex = Math.round(adjustedScrollLeft / cardTotalWidth);
   const clampedIndex = Math.max(0, Math.min(currentIndex, favoriteNodes.value.length - 1));
 
   if (activeIndex.value !== clampedIndex) {
@@ -1003,7 +1030,8 @@ const handleScroll = () => {
   }
   
   // 如果不是觸摸狀態，在滾動停止後自動居中（使用 requestAnimationFrame 優化）
-  if (!isTouching.value) {
+  // 但如果是程序化滾動（isScrolling），則不觸發 snap
+  if (!isTouching.value && !isScrolling.value) {
     if (scrollTimeout.value) {
       clearTimeout(scrollTimeout.value);
     }
@@ -1111,6 +1139,8 @@ defineExpose({
   will-change: scroll-position;
   /* 平滑滾動 */
   scroll-behavior: smooth;
+  /* 讓左右兩側可以顯示部分內容 */
+  scroll-padding: 0 20%;
 }
 
 .favorites-header {
@@ -1407,11 +1437,13 @@ defineExpose({
   flex-direction: row;
   gap: 12px;
   width: max-content;
-  padding-left: 16px;
-  padding-right: 0;
+  /* 左右各留 40px 空間顯示相鄰卡片的部分內容 */
+  padding-left: 40px;
+  padding-right: 40px;
   min-width: 100%;
   /* 優化滾動性能 */
   will-change: transform;
+  align-items: center;
 }
 
 /* Tablet and Desktop Styles - 左右佈局 */
