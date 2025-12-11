@@ -182,9 +182,9 @@ const handleViewOnMap = () => {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
-  width: calc(100vw - 32px);
-  min-width: calc(100vw - 32px);
-  max-width: calc(100vw - 32px);
+  width: calc(100vw - 16px);
+  min-width: calc(100vw - 16px);
+  max-width: calc(100vw - 16px);
   flex-shrink: 0;
   position: relative;
   margin-bottom: 0;

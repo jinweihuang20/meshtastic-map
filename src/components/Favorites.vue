@@ -1081,7 +1081,7 @@ defineExpose({
 <style scoped>
 .favorites-wrapper {
   width: 100%;
-  min-height: calc(100vh - var(--navbar-height, 60px));
+  min-height: 100vh;
   padding-top: calc(var(--navbar-height, 60px));
   background: #0f0f0f;
   box-sizing: border-box;
@@ -1096,7 +1096,7 @@ defineExpose({
   margin-top: 8px;
   padding-left: 0;
   padding-right: 0;
-  padding-bottom: 16px;
+  padding-bottom: 0;
   box-sizing: border-box;
   position: relative;
   /* 移動端允許水平滾動 */
@@ -1278,6 +1278,16 @@ defineExpose({
 
 /* 手機端：拖曳手柄更明顯但保持緊湊 */
 @media (max-width: 767px) {
+  .favorites-wrapper {
+    min-height: 100vh;
+    padding-bottom: 0;
+  }
+
+  .favorites-container {
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+
   .drag-handle {
     font-size: 14px;
     min-width: 28px;
@@ -1398,7 +1408,7 @@ defineExpose({
   gap: 12px;
   width: max-content;
   padding-left: 16px;
-  padding-right: 16px;
+  padding-right: 0;
   min-width: 100%;
   /* 優化滾動性能 */
   will-change: transform;
@@ -1417,7 +1427,7 @@ defineExpose({
   .favorites-container {
     padding-left: 20px;
     padding-right: 20px;
-    padding-bottom: 20px;
+    padding-bottom: 0;
     overflow-x: hidden;
     overflow-y: auto;
     touch-action: pan-y;
@@ -1476,7 +1486,7 @@ defineExpose({
   .favorites-container {
     padding-left: 30px;
     padding-right: 30px;
-    padding-bottom: 30px;
+    padding-bottom: 0;
   }
 
   .favorites-header h2 {
@@ -1497,7 +1507,7 @@ defineExpose({
   .favorites-container {
     padding-left: 40px;
     padding-right: 40px;
-    padding-bottom: 40px;
+    padding-bottom: 0;
   }
 
   .favorites-list {
