@@ -906,11 +906,18 @@ onUnmounted(() => {
 @media (min-width: 768px) {
   .search-bar {
     padding: 16px 20px;
+    display: flex;
+    justify-content: center;
   }
 
   .search-container {
     max-width: 800px;
     margin: 0 auto;
+    width: 100%;
+  }
+
+  .search-container:not(.expanded) {
+    justify-content: center;
   }
 
   .search-input {
@@ -982,6 +989,12 @@ onUnmounted(() => {
 @media (min-width: 1024px) {
   .search-container {
     max-width: 1000px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .search-container:not(.expanded) {
+    justify-content: center;
   }
 
   .search-results {
