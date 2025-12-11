@@ -23,73 +23,9 @@
 
       <div ref="listContainer" class="favorites-container" @scroll="handleScroll" @touchstart="handleTouchStart" @touchend="handleTouchEnd" @touchmove="handleTouchMove">
         <div class="favorites-list">
-          <div v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setCardRef(el, index)"
-            class="favorite-item">
-            <!-- 左側：節點信息 -->
-            <div class="node-info-section">
-              <div class="node-header">
-                <div class="node-name">
-                  <span class="node-icon">📡</span>
-                  <strong>{{ node.long_name || node.short_name || '未知節點' }}</strong>
-                </div>
-                <button class="remove-btn" @click="removeFavorite(node.node_id)" title="移除">
-                  移除收藏
-                </button>
-              </div>
-
-              <div class="node-details">
-                <div class="info-row">
-                  <span class="label">ID:</span>
-                  <span class="value">{{ node.node_id_hex || node.node_id }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">型號:</span>
-                  <span class="value">{{ node.hardware_model_name || '未知' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">位置:</span>
-                  <span class="value">{{ formatCoordinates(node.latitude, node.longitude) }}</span>
-                </div>
-                <template v-if="getLatestMetric(node.node_id)">
-                  <div class="info-row">
-                    <span class="label">電量:</span>
-                    <span class="value">{{ getLatestMetric(node.node_id).battery_level || 'N/A' }}%</span>
-                  </div>
-                  <div v-if="getLatestMetric(node.node_id).channel_utilization !== undefined" class="info-row">
-                    <span class="label">頻道利用率:</span>
-                    <span class="value">{{ parseFloat(getLatestMetric(node.node_id).channel_utilization || 0).toFixed(1)
-                    }}%</span>
-                  </div>
-                  <div v-if="getLatestMetric(node.node_id).air_util_tx !== undefined" class="info-row">
-                    <span class="label">空中傳輸率:</span>
-                    <span class="value">{{ parseFloat(getLatestMetric(node.node_id).air_util_tx || 0).toFixed(1)
-                    }}%</span>
-                  </div>
-                  <div v-if="getLatestMetric(node.node_id).updated_at" class="info-row">
-                    <span class="label">更新時間:</span>
-                    <span class="value">{{ formatDateTime(getLatestMetric(node.node_id).updated_at) }} ({{
-                      getRelativeTime(getLatestMetric(node.node_id).updated_at) }})</span>
-                  </div>
-                </template>
-              </div>
-
-              <button class="action-btn" @click="viewOnMap(node)">
-                🗺️ 在地圖上查看
-              </button>
-            </div>
-
-            <!-- 右側：趨勢圖 -->
-            <div class="chart-section">
-              <DeviceMetricsChart v-if="nodeMetrics[node.node_id] && nodeMetrics[node.node_id].length > 0"
-                :node-id="node.node_id" :metrics="nodeMetrics[node.node_id]" :height="chartHeight" />
-              <div v-else-if="loadingMetrics[node.node_id]" class="chart-placeholder">
-                載入圖表中...
-              </div>
-              <div v-else class="chart-placeholder">
-                暫無設備指標數據
-              </div>
-            </div>
-          </div>
+          <FavoriteNodeCard v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setCardRef(el, index)"
+            :node="node" :metrics="nodeMetrics[node.node_id] || []" :loading-metrics="loadingMetrics[node.node_id] || false"
+            :chart-height="chartHeight" @remove="removeFavorite" @view-on-map="viewOnMap" />
         </div>
       </div>
     </template>
@@ -98,8 +34,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, onActivated, defineEmits, nextTick } from 'vue';
-import DeviceMetricsChart from './DeviceMetricsChart.vue';
 import NodeSearchBar from './NodeSearchBar.vue';
+import FavoriteNodeCard from './FavoriteNodeCard.vue';
 
 const emit = defineEmits(['view-on-map']);
 
@@ -262,86 +198,17 @@ const removeFavorite = (nodeId) => {
   delete loadingMetrics.value[nodeId];
 };
 
-// 格式化座標
-const formatCoordinates = (lat, lng) => {
-  if (!lat || !lng) return '未知';
-  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-};
-
-// 獲取節點的最新指標（第一筆數據，因為 reverse() 後第一筆是最新的）
-// 注意：根據 fetchDeviceMetrics 的實現，數據經過 reverse() 後，第一筆是最舊的，最後一筆是最新的
-// 但根據用戶要求使用"頭一筆"，這裡使用第一筆數據
-// 如果數據順序不符合預期，可能需要調整為使用最後一筆：metrics[metrics.length - 1]
-const getLatestMetric = (nodeId) => {
-  const metrics = nodeMetrics.value[nodeId];
-  if (metrics && metrics.length > 0) {
-    // 根據用戶要求使用第一筆數據
-    // 如果第一筆不是最新的，請改為：return metrics[metrics.length - 1];
-    // return metrics[0];
-    return metrics[metrics.length - 1];
-  }
-  return null;
-};
-
-// 格式化日期時間
-const formatDateTime = (dateString) => {
-  if (!dateString) return '未知';
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-  } catch (error) {
-    return '未知';
-  }
-};
-
-// 計算相對時間（距離當前多久）
-const getRelativeTime = (dateString) => {
-  if (!dateString) return '未知';
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffSeconds = Math.floor(diffMs / 1000);
-    const diffMinutes = Math.floor(diffSeconds / 60);
-    const diffHours = Math.floor(diffMinutes / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    const diffMonths = Math.floor(diffDays / 30);
-    const diffYears = Math.floor(diffDays / 365);
-
-    if (diffSeconds < 60) {
-      return '剛剛';
-    } else if (diffMinutes < 60) {
-      return `${diffMinutes}分鐘前`;
-    } else if (diffHours < 24) {
-      return `${diffHours}小時前`;
-    } else if (diffDays < 30) {
-      return `${diffDays}天前`;
-    } else if (diffMonths < 12) {
-      return `${diffMonths}個月前`;
-    } else {
-      return `${diffYears}年前`;
-    }
-  } catch (error) {
-    return '未知';
-  }
-};
 
 // 在地圖上查看節點
 const viewOnMap = (node) => {
   emit('view-on-map', node);
 };
 
-// 設置卡片 ref
+// 設置卡片 ref（處理組件實例）
 const setCardRef = (el, index) => {
   if (el) {
-    cardRefs.value[index] = el;
+    // el 是組件實例，使用 $el 獲取根 DOM 元素
+    cardRefs.value[index] = el.$el || el;
   }
 };
 
@@ -816,183 +683,6 @@ defineExpose({
   will-change: transform;
 }
 
-.favorite-item {
-  background: #353535;
-  /* border-radius: 2px; */
-  border: 1px solid #888888;
-  overflow: visible;
-  transition: all 0.2s ease;
-  display: flex;
-  flex-direction: column;
-  width: calc(100vw - 32px);
-  min-width: calc(100vw - 32px);
-  max-width: calc(100vw - 32px);
-  flex-shrink: 0;
-  position: relative;
-  margin-bottom: 0;
-  /* 確保觸摸事件可以正常傳遞 */
-  touch-action: pan-x pan-y;
-  /* 防止意外觸發縮放 */
-  -webkit-user-select: none;
-  user-select: none;
-  /* 優化渲染性能 */
-  will-change: transform;
-  /* 啟用硬件加速 */
-  transform: translateZ(0);
-}
-
-/* 節點信息區 - 左側 */
-.node-info-section {
-  padding: 12px;
-  background: #1a1a1a;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.node-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #2a2a2a;
-}
-
-.node-name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 20px;
-  letter-spacing: 1px;
-  color: #e0e0e0;
-  font-weight: 600;
-}
-
-.node-icon {
-  font-size: 16px;
-}
-
-.remove-btn {
-  background: rgba(231, 76, 60, 0.15);
-  border: 1px solid rgba(231, 76, 60, 0.3);
-  color: #ff6b6b;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.remove-btn:hover {
-  background: rgba(231, 76, 60, 0.25);
-  border-color: rgba(231, 76, 60, 0.5);
-  transform: scale(1.05);
-}
-
-.node-details {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.info-row {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 8px;
-  min-height: 20px;
-}
-
-.label {
-  font-size: 11px;
-  color: #888888;
-  font-weight: 500;
-  min-width: 85px;
-  flex-shrink: 0;
-  flex-grow: 0;
-  line-height: 1.4;
-}
-
-.value {
-  font-size: 12px;
-  color: #e0e0e0;
-  font-weight: 500;
-  flex: 1;
-  word-break: break-word;
-  line-height: 1.4;
-  overflow-wrap: break-word;
-}
-
-.status-badge {
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  background: #2a4a6a;
-  color: #7db3e8;
-  display: inline-block;
-  border: 1px solid rgba(125, 179, 232, 0.2);
-}
-
-.status-badge.connected {
-  background: #1a4a2a;
-  color: #7de8a3;
-  border-color: rgba(125, 232, 163, 0.2);
-}
-
-.action-btn {
-  width: 100%;
-  padding: 10px 12px;
-  background: #2a2a2a;
-  color: #e0e0e0;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.action-btn:hover {
-  background: #3a3a3a;
-  border-color: #4a4a4a;
-  color: #ffffff;
-  transform: translateY(-1px);
-}
-
-/* 圖表區 - 右側 */
-.chart-section {
-  padding: 12px;
-  background: #141414;
-  height: 280px;
-  min-height: 280px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0 0 8px 8px;
-}
-
-/* 移動端：整個卡片圓角 */
-@media (max-width: 767px) {
-  .chart-section {
-    border-radius: 0 0 8px 8px;
-  }
-}
-
-.chart-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #666666;
-  font-size: 12px;
-}
-
 /* Tablet and Desktop Styles - 左右佈局 */
 @media (min-width: 768px) {
   .favorites-wrapper {
@@ -1054,62 +744,6 @@ defineExpose({
     padding-left: 0;
     padding-right: 0;
   }
-
-  .favorite-item {
-    flex-direction: row;
-    width: 100%;
-    min-width: auto;
-    max-width: none;
-    margin-bottom: 0;
-    border-radius: 2px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .node-info-section {
-    flex: 0 0 350px;
-    padding: 20px;
-    border-right: 1px solid #2a2a2a;
-  }
-
-  .node-name {
-    font-size: 18px;
-  }
-
-  .node-icon {
-    font-size: 24px;
-  }
-
-  .chart-section {
-    flex: 1;
-    padding: 20px;
-    height: 350px;
-    min-height: 350px;
-    border-radius: 0 12px 12px 0;
-  }
-
-  .node-details {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px 16px;
-  }
-
-  .info-row {
-    flex-direction: column;
-    gap: 4px;
-    min-height: auto;
-  }
-
-  .label {
-    min-width: auto;
-    font-size: 10px;
-    color: #888888;
-  }
-
-  .value {
-    font-size: 13px;
-    word-break: break-word;
-  }
-
 }
 
 /* Large Desktop Styles */
@@ -1131,33 +765,6 @@ defineExpose({
   .favorites-list {
     gap: 24px;
   }
-
-  .node-info-section {
-    flex: 0 0 400px;
-  }
-
-  .chart-section {
-    height: 400px;
-    min-height: 400px;
-  }
-
-  .node-details {
-    grid-template-columns: 1fr 1fr;
-    gap: 12px 20px;
-  }
-
-  .info-row {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .label {
-    font-size: 11px;
-  }
-
-  .value {
-    font-size: 14px;
-  }
 }
 
 /* Extra Large Desktop */
@@ -1174,22 +781,6 @@ defineExpose({
 
   .favorites-list {
     gap: 28px;
-  }
-
-  .node-info-section {
-    flex: 0 0 450px;
-  }
-
-  .node-name {
-    font-size: 20px;
-  }
-
-  .node-icon {
-    font-size: 28px;
-  }
-
-  .info-row {
-    flex-direction: column;
   }
 }
 </style>
