@@ -69,14 +69,18 @@ const handleResize = () => {
 const chartHeight = computed(() => {
   // 移動端（直立螢幕）
   if (windowWidth.value < 768) {
-    return '280px';
+    return '216px'; // 240px - 24px padding
   }
   // 平板
   if (windowWidth.value < 1024) {
-    return '350px';
+    return '288px'; // 320px - 32px padding
   }
   // 桌面
-  return '400px';
+  if (windowWidth.value < 1400) {
+    return '328px'; // 360px - 32px padding
+  }
+  // 超大桌面
+  return '368px'; // 400px - 32px padding
 });
 
 // 獲取設備指標數據

@@ -202,36 +202,41 @@ const handleViewOnMap = () => {
   will-change: transform;
   /* 啟用硬件加速 */
   transform: translateZ(0);
+  /* 確保內容不會溢出 */
+  min-height: 0;
 }
 
 /* 節點信息區 - 左側 */
 .node-info-section {
-  padding: 16px;
+  padding: 14px;
   background: transparent;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .node-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 2px;
 }
 
 .node-name {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 20px;
+  font-size: 18px;
   letter-spacing: -0.3px;
   color: #ffffff;
   font-weight: 600;
   /* iOS 風格字體 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.3;
 }
 
 .node-icon {
@@ -273,16 +278,18 @@ const handleViewOnMap = () => {
 .node-details {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
 }
 
 .info-row {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 12px;
-  min-height: 24px;
-  padding: 4px 0;
+  gap: 10px;
+  min-height: 22px;
+  padding: 2px 0;
 }
 
 .label {
@@ -327,12 +334,12 @@ const handleViewOnMap = () => {
 .action-btn {
   /* iOS 風格主要按鈕 */
   width: 100%;
-  padding: 12px 16px;
+  padding: 10px 14px;
   background: rgba(0, 122, 255, 0.15);
   color: #007aff;
   border: 0.5px solid rgba(0, 122, 255, 0.3);
   border-radius: 10px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -340,7 +347,8 @@ const handleViewOnMap = () => {
   -webkit-font-smoothing: antialiased;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  margin-top: 4px;
+  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 .action-btn:hover {
@@ -356,17 +364,37 @@ const handleViewOnMap = () => {
 
 /* 圖表區 - 右側 */
 .chart-section {
-  padding: 16px;
+  padding: 12px;
   background: rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  height: 280px;
-  min-height: 280px;
+  min-height: 240px;
+  height: 240px;
+  max-height: 240px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   border-radius: 0 0 16px 16px;
   border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.chart-section > * {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+/* 確保圖表組件能正確顯示 */
+.chart-section :deep(canvas),
+.chart-section :deep(svg) {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .chart-placeholder {
@@ -396,27 +424,40 @@ const handleViewOnMap = () => {
   }
 
   .node-info-section {
-    flex: 0 0 350px;
-    padding: 24px;
+    flex: 0 0 320px;
+    padding: 18px;
     border-right: 0.5px solid rgba(255, 255, 255, 0.1);
     border-bottom: none;
+    max-height: 100%;
+    overflow-y: auto;
   }
 
   .node-name {
-    font-size: 18px;
+    font-size: 17px;
   }
 
   .node-icon {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .chart-section {
     flex: 1;
-    padding: 24px;
-    height: 350px;
-    min-height: 350px;
+    padding: 16px;
+    min-height: 320px;
+    height: 320px;
+    max-height: 320px;
     border-radius: 0 16px 16px 0;
     border-top: none;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+  
+  .chart-section > * {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-width: 100%;
+    max-height: 100%;
   }
 
   .node-details {
@@ -447,12 +488,13 @@ const handleViewOnMap = () => {
 /* Large Desktop Styles */
 @media (min-width: 1024px) {
   .node-info-section {
-    flex: 0 0 400px;
+    flex: 0 0 360px;
   }
 
   .chart-section {
-    height: 400px;
-    min-height: 400px;
+    min-height: 360px;
+    height: 360px;
+    max-height: 360px;
   }
 
   .node-details {
@@ -472,15 +514,21 @@ const handleViewOnMap = () => {
 /* Extra Large Desktop */
 @media (min-width: 1400px) {
   .node-info-section {
-    flex: 0 0 450px;
+    flex: 0 0 400px;
+  }
+
+  .chart-section {
+    min-height: 400px;
+    height: 400px;
+    max-height: 400px;
   }
 
   .node-name {
-    font-size: 20px;
+    font-size: 19px;
   }
 
   .node-icon {
-    font-size: 28px;
+    font-size: 26px;
   }
 
   .info-row {
