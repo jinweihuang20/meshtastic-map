@@ -14,10 +14,40 @@
       <!-- 快速導航條（僅移動端顯示） -->
       <div v-if="windowWidth < 768" class="quick-nav">
         <div ref="quickNavScroll" class="quick-nav-scroll">
-          <button v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setNavItemRef(el, index)"
-            class="quick-nav-item" :class="{ active: activeIndex === index }" @click="scrollToCard(index)">
-            <span class="nav-item-name">{{ node.long_name || node.short_name || '未知節點' }}</span>
-          </button>
+          <template v-for="(node, index) in favoriteNodes" :key="node.node_id">
+            <!-- 插入位置指示器（在項目前面） -->
+            <div v-if="dragOverIndex === index && insertPosition === 'before' && draggedIndex !== index"
+              class="drop-indicator"></div>
+            
+            <button :ref="el => setNavItemRef(el, index)"
+              class="quick-nav-item" :class="{ 
+                active: activeIndex === index,
+                dragging: draggedIndex === index,
+                'drag-over': dragOverIndex === index
+              }"
+              draggable="true"
+              @click="handleNavItemClick(index, $event)"
+              @dragstart="handleDragStart(index, $event)"
+              @dragend="handleDragEnd"
+              @dragover="handleDragOver(index, $event)"
+              @dragenter="handleDragEnter(index, $event)"
+              @dragleave="handleDragLeave"
+              @drop="handleDrop(index, $event)"
+              @touchstart="handleNavTouchStart(index, $event)"
+              @touchmove="handleNavTouchMove($event)"
+              @touchend="handleNavTouchEnd($event)">
+              <span class="drag-handle">☰</span>
+              <span class="nav-item-name">{{ node.long_name || node.short_name || '未知節點' }}</span>
+            </button>
+            
+            <!-- 插入位置指示器（在項目後面） -->
+            <div v-if="dragOverIndex === index && insertPosition === 'after' && draggedIndex !== index"
+              class="drop-indicator"></div>
+          </template>
+          
+          <!-- 插入到最後的指示器 -->
+          <div v-if="dragOverIndex === favoriteNodes.length - 1 && insertPosition === 'after' && draggedIndex !== favoriteNodes.length - 1"
+            class="drop-indicator"></div>
         </div>
       </div>
 
@@ -59,6 +89,15 @@ const touchLastTime = ref(0);
 const isTouching = ref(false);
 const scrollTimeout = ref(null);
 const scrollAnimationFrame = ref(null);
+// 拖曳相關
+const draggedIndex = ref(null);
+const dragOverIndex = ref(null);
+const insertPosition = ref(null); // 'before' 或 'after'
+const touchDragStartIndex = ref(null);
+const touchDragStartX = ref(0);
+const touchDragStartY = ref(0);
+const isDragging = ref(false);
+const navTouchStartTime = ref(0);
 
 // 監聽窗口大小變化
 const handleResize = () => {
@@ -276,6 +315,316 @@ const scrollNavToItem = (index) => {
   setTimeout(() => {
     isScrollingNav.value = false;
   }, 300);
+};
+
+// 處理導航項點擊（區分拖曳和點擊）
+const handleNavItemClick = (index, event) => {
+  // 如果正在拖曳或剛剛完成拖曳，不觸發點擊
+  if (isDragging.value || draggedIndex.value !== null) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  
+  // 檢查是否在短時間內（可能是拖曳開始）
+  const timeSinceTouchStart = Date.now() - navTouchStartTime.value;
+  if (timeSinceTouchStart < 300) {
+    // 可能是拖曳開始，不觸發點擊
+    return;
+  }
+  
+  scrollToCard(index);
+};
+
+// 拖曳開始
+const handleDragStart = (index, event) => {
+  draggedIndex.value = index;
+  isDragging.value = true;
+  dragOverIndex.value = null;
+  insertPosition.value = null;
+  
+  // 設置拖曳數據
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/html', index.toString());
+    event.dataTransfer.setData('text/plain', index.toString());
+  }
+  
+  // 設置拖曳圖像
+  const target = event.currentTarget || event.target;
+  if (target) {
+    target.style.opacity = '0.5';
+    // 創建自定義拖曳圖像
+    const dragImage = target.cloneNode(true);
+    dragImage.style.position = 'absolute';
+    dragImage.style.top = '-1000px';
+    document.body.appendChild(dragImage);
+    if (event.dataTransfer) {
+      event.dataTransfer.setDragImage(dragImage, 0, 0);
+    }
+    setTimeout(() => document.body.removeChild(dragImage), 0);
+  }
+};
+
+// 拖曳結束
+const handleDragEnd = (event) => {
+  const target = event.currentTarget || event.target;
+  if (target) {
+    target.style.opacity = '1';
+  }
+  
+  // 延遲重置狀態，避免與 drop 事件衝突
+  setTimeout(() => {
+    draggedIndex.value = null;
+    dragOverIndex.value = null;
+    insertPosition.value = null;
+    isDragging.value = false;
+  }, 100);
+};
+
+// 拖曳經過
+const handleDragOver = (index, event) => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  if (draggedIndex.value !== null && draggedIndex.value !== index) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const midpoint = rect.left + rect.width / 2;
+    const mouseX = event.clientX;
+    
+    dragOverIndex.value = index;
+    // 根據鼠標位置決定插入位置
+    if (mouseX > midpoint) {
+      insertPosition.value = 'after';
+    } else {
+      insertPosition.value = 'before';
+    }
+  }
+};
+
+// 拖曳進入
+const handleDragEnter = (index, event) => {
+  event.preventDefault();
+  if (draggedIndex.value !== null && draggedIndex.value !== index) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const midpoint = rect.left + rect.width / 2;
+    const mouseX = event.clientX || (event.touches && event.touches[0]?.clientX) || midpoint;
+    
+    dragOverIndex.value = index;
+    // 根據鼠標位置決定插入位置
+    if (mouseX > midpoint) {
+      insertPosition.value = 'after';
+    } else {
+      insertPosition.value = 'before';
+    }
+  }
+};
+
+// 拖曳離開
+const handleDragLeave = (event) => {
+  // 檢查是否真的離開了元素（而不是進入子元素）
+  const relatedTarget = event.relatedTarget;
+  if (relatedTarget && event.currentTarget.contains(relatedTarget)) {
+    // 進入了子元素，不清除狀態
+    return;
+  }
+  // 只有在真正離開時才清除（但保留一點延遲，避免閃爍）
+  // 不立即清除，讓 drop 事件有機會觸發
+};
+
+// 拖曳放下
+const handleDrop = (index, event) => {
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (draggedIndex.value === null) {
+    dragOverIndex.value = null;
+    insertPosition.value = null;
+    return;
+  }
+
+  // 如果拖曳到相同位置，不處理
+  if (draggedIndex.value === index && insertPosition.value === 'before') {
+    dragOverIndex.value = null;
+    insertPosition.value = null;
+    return;
+  }
+
+  // 根據插入位置計算目標索引
+  let targetIndex = index;
+  if (insertPosition.value === 'after') {
+    targetIndex = index + 1;
+  } else {
+    targetIndex = index;
+  }
+
+  // 重新排序節點
+  reorderNodes(draggedIndex.value, targetIndex);
+  
+  // 延遲重置狀態，確保動畫完成
+  setTimeout(() => {
+    draggedIndex.value = null;
+    dragOverIndex.value = null;
+    insertPosition.value = null;
+    isDragging.value = false;
+  }, 100);
+};
+
+// 觸摸拖曳開始
+const handleNavTouchStart = (index, event) => {
+  if (windowWidth.value >= 768) return;
+  
+  // 重置所有拖曳相關狀態
+  touchDragStartIndex.value = index;
+  touchDragStartX.value = event.touches[0].clientX;
+  touchDragStartY.value = event.touches[0].clientY;
+  navTouchStartTime.value = Date.now();
+  isDragging.value = false;
+  draggedIndex.value = null;
+  dragOverIndex.value = null;
+  insertPosition.value = null;
+  
+  // 防止快速導航條滾動干擾
+  if (quickNavScroll.value) {
+    quickNavScroll.value.style.scrollBehavior = 'auto';
+  }
+};
+
+// 觸摸拖曳移動
+const handleNavTouchMove = (event) => {
+  if (windowWidth.value >= 768 || touchDragStartIndex.value === null) return;
+  
+  const touch = event.touches[0];
+  if (!touch) return;
+  
+  const deltaX = Math.abs(touch.clientX - touchDragStartX.value);
+  const deltaY = Math.abs(touch.clientY - touchDragStartY.value);
+  
+  // 降低觸發閾值，提高響應性（從10px改為5px）
+  if (deltaX > 5 && deltaX > deltaY * 1.5) {
+    // 防止快速導航條滾動
+    if (quickNavScroll.value) {
+      quickNavScroll.value.style.overflowX = 'hidden';
+    }
+    
+    if (!isDragging.value) {
+      isDragging.value = true;
+      draggedIndex.value = touchDragStartIndex.value;
+      
+      // 設置拖曳項目的樣式
+      if (navItemRefs.value[touchDragStartIndex.value]) {
+        navItemRefs.value[touchDragStartIndex.value].style.opacity = '0.5';
+      }
+    }
+    
+    // 找到當前觸摸位置下的元素
+    const touchElement = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (touchElement) {
+      const navItem = touchElement.closest('.quick-nav-item');
+      if (navItem) {
+        // 找到對應的索引 - 使用更可靠的方法
+        const allNavItems = Array.from(quickNavScroll.value?.querySelectorAll('.quick-nav-item') || []);
+        const currentIndex = allNavItems.indexOf(navItem);
+        
+        if (currentIndex !== -1 && currentIndex !== draggedIndex.value) {
+          const rect = navItem.getBoundingClientRect();
+          const midpoint = rect.left + rect.width / 2;
+          const touchX = touch.clientX;
+          
+          dragOverIndex.value = currentIndex;
+          // 根據觸摸位置決定插入位置
+          if (touchX > midpoint) {
+            insertPosition.value = 'after';
+          } else {
+            insertPosition.value = 'before';
+          }
+        }
+      }
+    }
+    
+    event.preventDefault();
+    event.stopPropagation();
+  }
+};
+
+// 觸摸拖曳結束
+const handleNavTouchEnd = (event) => {
+  if (windowWidth.value >= 768 || touchDragStartIndex.value === null) return;
+  
+  // 恢復快速導航條滾動
+  if (quickNavScroll.value) {
+    quickNavScroll.value.style.overflowX = 'auto';
+    quickNavScroll.value.style.scrollBehavior = 'smooth';
+  }
+  
+  // 恢復拖曳項目的樣式
+  if (draggedIndex.value !== null && navItemRefs.value[draggedIndex.value]) {
+    navItemRefs.value[draggedIndex.value].style.opacity = '1';
+  }
+  
+  if (isDragging.value && draggedIndex.value !== null && dragOverIndex.value !== null && draggedIndex.value !== dragOverIndex.value) {
+    // 根據插入位置計算目標索引
+    let targetIndex = dragOverIndex.value;
+    if (insertPosition.value === 'after') {
+      targetIndex = dragOverIndex.value + 1;
+    } else {
+      targetIndex = dragOverIndex.value;
+    }
+    
+    // 重新排序節點
+    reorderNodes(draggedIndex.value, targetIndex);
+  }
+  
+  // 延遲重置狀態，確保動畫完成
+  setTimeout(() => {
+    touchDragStartIndex.value = null;
+    draggedIndex.value = null;
+    dragOverIndex.value = null;
+    insertPosition.value = null;
+    isDragging.value = false;
+  }, 150);
+};
+
+// 重新排序節點
+const reorderNodes = (fromIndex, toIndex) => {
+  // 確保索引在有效範圍內
+  const maxIndex = favoriteNodes.value.length - 1;
+  const clampedToIndex = Math.max(0, Math.min(toIndex, maxIndex));
+  
+  // 如果 fromIndex 和 toIndex 相同，不需要重新排序
+  if (fromIndex === clampedToIndex) {
+    return;
+  }
+  
+  const newNodes = [...favoriteNodes.value];
+  const [movedNode] = newNodes.splice(fromIndex, 1);
+  
+  // 如果目標索引大於原索引，需要減1（因為已經移除了元素）
+  const adjustedToIndex = fromIndex < clampedToIndex ? clampedToIndex - 1 : clampedToIndex;
+  newNodes.splice(adjustedToIndex, 0, movedNode);
+  
+  favoriteNodes.value = newNodes;
+  
+  // 保存到 localStorage
+  localStorage.setItem('meshtastic_favorites', JSON.stringify(favoriteNodes.value));
+  
+  // 觸發自定義事件
+  window.dispatchEvent(new CustomEvent('favorites-updated'));
+  
+  // 更新活動索引（如果受影響）
+  if (activeIndex.value === fromIndex) {
+    activeIndex.value = adjustedToIndex;
+  } else if (activeIndex.value > fromIndex && activeIndex.value <= clampedToIndex) {
+    activeIndex.value--;
+  } else if (activeIndex.value < fromIndex && activeIndex.value >= clampedToIndex) {
+    activeIndex.value++;
+  }
+  
+  // 等待 DOM 更新後重新滾動到當前卡片
+  nextTick(() => {
+    if (activeIndex.value !== null) {
+      scrollToCard(activeIndex.value);
+    }
+  });
 };
 
 // 處理觸摸開始
@@ -627,6 +976,8 @@ defineExpose({
   /* Firefox */
   -ms-overflow-style: none;
   /* IE and Edge */
+  position: relative;
+  align-items: center;
 }
 
 .quick-nav-scroll::-webkit-scrollbar {
@@ -646,9 +997,91 @@ defineExpose({
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
-  cursor: pointer;
+  cursor: move;
+  cursor: grab;
   transition: all 0.2s ease;
   flex-shrink: 0;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-x;
+  -webkit-touch-callout: none;
+}
+
+.quick-nav-item:active {
+  cursor: grabbing;
+}
+
+.quick-nav-item[draggable="true"] {
+  -webkit-user-drag: element;
+}
+
+.quick-nav-item.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  z-index: 1000;
+}
+
+.quick-nav-item.drag-over {
+  border-color: rgb(72, 161, 103);
+  background: rgba(72, 161, 103, 0.2);
+  transform: scale(1.05);
+}
+
+.drag-handle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: grab;
+  margin-right: 2px;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.quick-nav-item:active .drag-handle {
+  cursor: grabbing;
+}
+
+/* 插入位置指示器 */
+.drop-indicator {
+  width: 3px;
+  height: 32px;
+  background: linear-gradient(180deg, rgb(72, 161, 103) 0%, rgba(72, 161, 103, 0.8) 100%);
+  border-radius: 2px;
+  flex-shrink: 0;
+  margin: 0 2px;
+  animation: dropIndicatorPulse 1s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(72, 161, 103, 0.6);
+  position: relative;
+  z-index: 10;
+}
+
+.drop-indicator::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  background: rgb(72, 161, 103);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(72, 161, 103, 0.8);
+}
+
+.drop-indicator-last {
+  order: 9999;
+}
+
+@keyframes dropIndicatorPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scaleY(1.1);
+  }
 }
 
 .quick-nav-item:hover {
