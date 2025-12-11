@@ -36,7 +36,6 @@
               @touchstart="handleNavTouchStart(index, $event)"
               @touchmove="handleNavTouchMove($event)"
               @touchend="handleNavTouchEnd($event)">
-              <span class="drag-handle">☰</span>
               <span class="nav-item-name">{{ node.long_name || node.short_name || '未知節點' }}</span>
             </button>
             
@@ -98,6 +97,9 @@ const touchDragStartX = ref(0);
 const touchDragStartY = ref(0);
 const isDragging = ref(false);
 const navTouchStartTime = ref(0);
+const longPressTimer = ref(null);
+const isLongPress = ref(false);
+const touchStartElement = ref(null);
 
 // 監聽窗口大小變化
 const handleResize = () => {
@@ -473,20 +475,37 @@ const handleDrop = (index, event) => {
 const handleNavTouchStart = (index, event) => {
   if (windowWidth.value >= 768) return;
   
+  // 清除之前的長按計時器
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value);
+    longPressTimer.value = null;
+  }
+  
   // 重置所有拖曳相關狀態
   touchDragStartIndex.value = index;
   touchDragStartX.value = event.touches[0].clientX;
   touchDragStartY.value = event.touches[0].clientY;
   navTouchStartTime.value = Date.now();
   isDragging.value = false;
+  isLongPress.value = false;
   draggedIndex.value = null;
   dragOverIndex.value = null;
   insertPosition.value = null;
+  touchStartElement.value = event.target;
   
-  // 防止快速導航條滾動干擾
-  if (quickNavScroll.value) {
-    quickNavScroll.value.style.scrollBehavior = 'auto';
-  }
+  // 設置長按計時器（手機端300ms，更友好）
+  longPressTimer.value = setTimeout(() => {
+    isLongPress.value = true;
+    // 觸覺反饋（如果支持）
+    if (navigator.vibrate) {
+      navigator.vibrate([10, 50, 10]);
+    }
+    // 視覺反饋：讓項目稍微放大提示可以拖曳
+    if (navItemRefs.value[index]) {
+      navItemRefs.value[index].classList.add('long-press-active');
+    }
+    longPressTimer.value = null;
+  }, 300);
 };
 
 // 觸摸拖曳移動
@@ -496,13 +515,35 @@ const handleNavTouchMove = (event) => {
   const touch = event.touches[0];
   if (!touch) return;
   
-  const deltaX = Math.abs(touch.clientX - touchDragStartX.value);
-  const deltaY = Math.abs(touch.clientY - touchDragStartY.value);
+  const deltaX = touch.clientX - touchDragStartX.value;
+  const deltaY = touch.clientY - touchDragStartY.value;
+  const absDeltaX = Math.abs(deltaX);
+  const absDeltaY = Math.abs(deltaY);
   
-  // 降低觸發閾值，提高響應性（從10px改為5px）
-  if (deltaX > 5 && deltaX > deltaY * 1.5) {
+  // 如果移動距離較大，取消長按計時器（可能是滾動）
+  if (absDeltaX > 8 || absDeltaY > 8) {
+    if (longPressTimer.value) {
+      clearTimeout(longPressTimer.value);
+      longPressTimer.value = null;
+      // 移除長按視覺反饋
+      if (touchDragStartIndex.value !== null && navItemRefs.value[touchDragStartIndex.value]) {
+        navItemRefs.value[touchDragStartIndex.value].classList.remove('long-press-active');
+      }
+    }
+    
+    // 如果是垂直滾動為主，不處理拖曳
+    if (absDeltaY > absDeltaX * 1.2) {
+      return; // 允許正常滾動
+    }
+  }
+  
+  // 手機端：降低拖曳觸發條件，讓拖曳更容易
+  // 長按後允許拖曳，或者水平移動超過8px且明顯大於垂直移動
+  const canDrag = isLongPress.value || (absDeltaX > 8 && absDeltaX > absDeltaY * 1.5);
+  
+  if (canDrag && absDeltaX > 3 && absDeltaX > absDeltaY * 1.2) {
     // 防止快速導航條滾動
-    if (quickNavScroll.value) {
+    if (quickNavScroll.value && !isDragging.value) {
       quickNavScroll.value.style.overflowX = 'hidden';
     }
     
@@ -512,7 +553,16 @@ const handleNavTouchMove = (event) => {
       
       // 設置拖曳項目的樣式
       if (navItemRefs.value[touchDragStartIndex.value]) {
-        navItemRefs.value[touchDragStartIndex.value].style.opacity = '0.5';
+        const item = navItemRefs.value[touchDragStartIndex.value];
+        item.style.opacity = '0.6';
+        item.style.transform = 'scale(1.05)';
+        item.style.zIndex = '1000';
+        item.classList.remove('long-press-active');
+      }
+      
+      // 觸覺反饋：開始拖曳
+      if (navigator.vibrate) {
+        navigator.vibrate(20);
       }
     }
     
@@ -550,6 +600,12 @@ const handleNavTouchMove = (event) => {
 const handleNavTouchEnd = (event) => {
   if (windowWidth.value >= 768 || touchDragStartIndex.value === null) return;
   
+  // 清除長按計時器
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value);
+    longPressTimer.value = null;
+  }
+  
   // 恢復快速導航條滾動
   if (quickNavScroll.value) {
     quickNavScroll.value.style.overflowX = 'auto';
@@ -558,10 +614,22 @@ const handleNavTouchEnd = (event) => {
   
   // 恢復拖曳項目的樣式
   if (draggedIndex.value !== null && navItemRefs.value[draggedIndex.value]) {
-    navItemRefs.value[draggedIndex.value].style.opacity = '1';
+    const item = navItemRefs.value[draggedIndex.value];
+    item.style.opacity = '1';
+    item.style.transform = '';
+    item.style.zIndex = '';
+    item.classList.remove('long-press-active');
   }
   
-  if (isDragging.value && draggedIndex.value !== null && dragOverIndex.value !== null && draggedIndex.value !== dragOverIndex.value) {
+  // 如果沒有拖曳，可能是點擊或滾動，不處理
+  if (!isDragging.value) {
+    touchDragStartIndex.value = null;
+    isLongPress.value = false;
+    touchStartElement.value = null;
+    return;
+  }
+  
+  if (draggedIndex.value !== null && dragOverIndex.value !== null && draggedIndex.value !== dragOverIndex.value) {
     // 根據插入位置計算目標索引
     let targetIndex = dragOverIndex.value;
     if (insertPosition.value === 'after') {
@@ -574,6 +642,11 @@ const handleNavTouchEnd = (event) => {
     reorderNodes(draggedIndex.value, targetIndex);
   }
   
+  // 清理長按視覺反饋
+  if (touchDragStartIndex.value !== null && navItemRefs.value[touchDragStartIndex.value]) {
+    navItemRefs.value[touchDragStartIndex.value].classList.remove('long-press-active');
+  }
+  
   // 延遲重置狀態，確保動畫完成
   setTimeout(() => {
     touchDragStartIndex.value = null;
@@ -581,6 +654,8 @@ const handleNavTouchEnd = (event) => {
     dragOverIndex.value = null;
     insertPosition.value = null;
     isDragging.value = false;
+    isLongPress.value = false;
+    touchStartElement.value = null;
   }, 150);
 };
 
@@ -845,6 +920,10 @@ onUnmounted(() => {
     cancelAnimationFrame(scrollAnimationFrame.value);
     scrollAnimationFrame.value = null;
   }
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value);
+    longPressTimer.value = null;
+  }
 });
 
 // 處理 localStorage 變化事件（跨標籤頁）
@@ -959,7 +1038,7 @@ defineExpose({
   top: calc(var(--navbar-height, 60px));
   z-index: 100;
   background: #0f0f0f;
-  padding: 12px 0;
+  padding: 8px 0;
   border-bottom: 1px solid #2a2a2a;
   margin-bottom: 0;
   flex-shrink: 0;
@@ -967,10 +1046,10 @@ defineExpose({
 
 .quick-nav-scroll {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 0 16px;
+  padding: 0 12px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   /* Firefox */
@@ -988,13 +1067,13 @@ defineExpose({
 .quick-nav-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
+  gap: 4px;
+  padding: 6px 10px;
   background: #1a1a1a;
   border: 1px solid #2a2a2a;
-  border-radius: 20px;
+  border-radius: 16px;
   color: #888888;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
   cursor: move;
@@ -1006,6 +1085,8 @@ defineExpose({
   -webkit-user-select: none;
   touch-action: pan-x;
   -webkit-touch-callout: none;
+  /* 手機端優化：增大觸摸目標 */
+  min-height: 32px;
 }
 
 .quick-nav-item:active {
@@ -1030,16 +1111,86 @@ defineExpose({
 
 .drag-handle {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.6);
   cursor: grab;
   margin-right: 2px;
   display: flex;
   align-items: center;
+  justify-content: center;
   line-height: 1;
+  padding: 2px 4px;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  /* 增大點擊區域 */
+  position: relative;
+  flex-shrink: 0;
+  /* 手機端：更明顯的視覺提示 */
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.drag-handle::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  right: -6px;
+  bottom: -6px;
+  /* 增大觸摸目標 */
+}
+
+/* 手機端：拖曳手柄更明顯但保持緊湊 */
+@media (max-width: 767px) {
+  .drag-handle {
+    font-size: 14px;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 3px 5px;
+    background: rgba(72, 161, 103, 0.1);
+    border: 1px solid rgba(72, 161, 103, 0.2);
+  }
+  
+  .quick-nav-item:hover .drag-handle,
+  .quick-nav-item:active .drag-handle {
+    background: rgba(72, 161, 103, 0.2);
+    border-color: rgba(72, 161, 103, 0.4);
+    color: rgba(72, 161, 103, 1);
+  }
+  
+  .quick-nav-item {
+    padding: 5px 9px;
+    font-size: 11px;
+    min-height: 30px;
+  }
+  
+  .nav-item-name {
+    max-width: 90px;
+  }
 }
 
 .quick-nav-item:active .drag-handle {
   cursor: grabbing;
+  background: rgba(72, 161, 103, 0.2);
+  color: rgba(72, 161, 103, 1);
+}
+
+.drag-handle:active {
+  color: rgba(72, 161, 103, 1);
+  background: rgba(72, 161, 103, 0.15);
+  transform: scale(1.1);
+}
+
+/* 長按激活狀態 */
+.quick-nav-item.long-press-active {
+  transform: scale(1.05);
+  background: rgba(72, 161, 103, 0.15);
+  border-color: rgba(72, 161, 103, 0.5);
+  box-shadow: 0 2px 8px rgba(72, 161, 103, 0.3);
 }
 
 /* 插入位置指示器 */
@@ -1102,9 +1253,10 @@ defineExpose({
 }
 
 .nav-item-name {
-  max-width: 120px;
+  max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 /* Favorites List - 移動端水平滾動 */
