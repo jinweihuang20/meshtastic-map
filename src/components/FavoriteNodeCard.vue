@@ -225,10 +225,10 @@ const handleViewOnMap = () => {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
-  /* 卡片寬度：容器寬度減去左右各 40px，讓左右兩側可以顯示部分內容 */
-  width: calc(100vw - 80px);
-  min-width: calc(100vw - 80px);
-  max-width: calc(100vw - 80px);
+  /* 卡片寬度：容器寬度減去左右各 24px，讓左右兩側可以顯示部分內容 */
+  width: calc(100vw - 48px);
+  min-width: calc(100vw - 48px);
+  max-width: calc(100vw - 48px);
   flex-shrink: 0;
   position: relative;
   margin-bottom: 0;

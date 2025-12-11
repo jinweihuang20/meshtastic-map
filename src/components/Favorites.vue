@@ -273,9 +273,9 @@ const scrollToCard = async (index) => {
   isScrolling.value = true;
   const container = listContainer.value;
   const containerWidth = container.clientWidth;
-  const cardWidth = containerWidth - 80; // calc(100vw - 80px)，左右各留 40px
+  const cardWidth = containerWidth - 48; // calc(100vw - 48px)，左右各留 24px
   const gap = 12;
-  const paddingLeft = 40; // .favorites-list 的 padding-left
+  const paddingLeft = 24; // .favorites-list 的 padding-left
   
   // 計算卡片左邊緣位置
   const cardLeftEdge = paddingLeft + index * (cardWidth + gap);
@@ -930,10 +930,10 @@ const snapToNearestCard = (deltaX = 0, velocity = 0) => {
   const container = listContainer.value;
   const scrollLeft = container.scrollLeft;
   const containerWidth = container.clientWidth;
-  const cardWidth = containerWidth - 80; // calc(100vw - 80px)，左右各留 40px
+  const cardWidth = containerWidth - 48; // calc(100vw - 48px)，左右各留 24px
   const gap = 12;
   const cardTotalWidth = cardWidth + gap;
-  const paddingLeft = 40; // .favorites-list 的 padding-left
+  const paddingLeft = 24; // .favorites-list 的 padding-left
   
   // 計算當前滾動位置對應的卡片索引
   // 考慮 padding-left，計算實際的卡片位置
@@ -1013,10 +1013,10 @@ const handleScroll = () => {
   const container = listContainer.value;
   const scrollLeft = container.scrollLeft;
   const containerWidth = container.clientWidth;
-  const cardWidth = containerWidth - 80; // calc(100vw - 80px)，左右各留 40px
+  const cardWidth = containerWidth - 48; // calc(100vw - 48px)，左右各留 24px
   const gap = 12;
   const cardTotalWidth = cardWidth + gap;
-  const paddingLeft = 40; // .favorites-list 的 padding-left
+  const paddingLeft = 24; // .favorites-list 的 padding-left
 
   // 計算當前可見的卡片索引（考慮 padding-left）
   const adjustedScrollLeft = scrollLeft + paddingLeft;
@@ -1200,7 +1200,7 @@ defineExpose({
   top: calc(var(--navbar-height, 60px));
   z-index: 100;
   background: #0f0f0f;
-  padding: 8px 0;
+  padding: 12px 0;
   border-bottom: 1px solid #2a2a2a;
   margin-bottom: 0;
   flex-shrink: 0;
@@ -1437,9 +1437,9 @@ defineExpose({
   flex-direction: row;
   gap: 12px;
   width: max-content;
-  /* 左右各留 40px 空間顯示相鄰卡片的部分內容 */
-  padding-left: 40px;
-  padding-right: 40px;
+  /* 左右各留 24px 空間顯示相鄰卡片的部分內容 */
+  padding-left: 24px;
+  padding-right: 24px;
   min-width: 100%;
   /* 優化滾動性能 */
   will-change: transform;
