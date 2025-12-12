@@ -7,16 +7,13 @@
           <span class="node-icon">📡</span>
           <strong>{{ node.long_name || node.short_name || '未知節點' }}</strong>
         </div>
-        <button class="remove-btn" @click="handleRemove" title="移除">
-          移除收藏
-        </button>
+        <button class="remove-btn" @click="handleRemove" title="移除"> 移除收藏 </button>
       </div>
-
       <div class="node-details">
         <div class="info-row">
           <span class="label">Short name:</span>
           <span class="value">
-           <el-tag effect="dark"  >{{ node.short_name || '未知' }}</el-tag></span>
+            <el-tag effect="dark">{{ node.short_name || '未知' }}</el-tag></span>
         </div>
         <div class="info-row">
           <span class="label">ID:</span>
@@ -45,33 +42,21 @@
           </div>
           <div v-if="latestMetric.updated_at" class="info-row">
             <span class="label">更新時間:</span>
-            <span class="value">{{ formatDateTime(latestMetric.updated_at) }} ({{
-              getRelativeTime(latestMetric.updated_at) }})</span>
+            <span class="value">{{ formatDateTime(latestMetric.updated_at) }} ({{ getRelativeTime(latestMetric.updated_at) }})</span>
           </div>
         </template>
       </div>
-
-      <button class="action-btn" @click="handleViewOnMap">
-        🗺️ 在地圖上查看
-      </button>
     </div>
-
     <!-- 右側：趨勢圖 -->
     <div class="chart-section">
-      <DeviceMetricsChart v-if="metrics && metrics.length > 0" :node-id="node.node_id" :metrics="metrics"
-        :height="chartHeight" />
-      <div v-else-if="loadingMetrics" class="chart-placeholder">
-        載入圖表中...
-      </div>
-      <div v-else class="chart-placeholder">
-        暫無設備指標數據
-      </div>
+      <DeviceMetricsChart v-if="metrics && metrics.length > 0" :node-id="node.node_id" :metrics="metrics" :height="chartHeight" />
+      <div v-else-if="loadingMetrics" class="chart-placeholder"> 載入圖表中... </div>
+      <div v-else class="chart-placeholder"> 暫無設備指標數據 </div>
     </div>
   </div>
 </template>
-
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import DeviceMetricsChart from './DeviceMetricsChart.vue';
 
 const props = defineProps({
@@ -103,6 +88,20 @@ const props = defineProps({
 
 const emit = defineEmits(['remove', 'view-on-map']);
 
+// 監聽窗口大小變化
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 768);
+const handleResize = () => {
+  windowWidth.value = window.innerWidth;
+};
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+});
+
 // 獲取最新的指標數據
 const latestMetric = computed(() => {
   if (props.metrics && props.metrics.length > 0) {
@@ -116,10 +115,15 @@ const distanceFromActive = computed(() => {
   return Math.abs(props.cardIndex - props.activeIndex);
 });
 
-// 計算卡片的透明度和縮放
+// 計算卡片的透明度和縮放（僅移動端）
 const cardStyle = computed(() => {
+  // 桌面端（>= 768px）不應用透明度和縮放效果
+  if (windowWidth.value >= 768) {
+    return {};
+  }
+
   const distance = distanceFromActive.value;
-  
+
   if (distance === 0) {
     // 活動卡片：完全不透明，正常大小
     return {
@@ -212,7 +216,6 @@ const handleViewOnMap = () => {
   emit('view-on-map', props.node);
 };
 </script>
-
 <style scoped>
 .favorite-item {
   /* iOS 風格：圓角卡片、毛玻璃效果 */
@@ -225,39 +228,52 @@ const handleViewOnMap = () => {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
-  /* 卡片寬度：容器寬度減去左右各 24px，讓左右兩側可以顯示部分內容 */
-  width: calc(100vw - 48px);
-  min-width: calc(100vw - 48px);
-  max-width: calc(100vw - 48px);
-  flex-shrink: 0;
   position: relative;
   margin-bottom: 0;
   /* iOS 風格陰影 */
-  box-shadow: 
+  box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.15),
     0 1px 3px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  /* 確保觸摸事件可以正常傳遞 */
-  touch-action: pan-x pan-y;
-  /* 防止意外觸發縮放 */
-  -webkit-user-select: none;
-  user-select: none;
-  /* 優化渲染性能 */
-  will-change: transform, opacity;
-  /* 啟用硬件加速 */
-  transform: translateZ(0);
   /* 確保內容不會溢出 */
   min-height: 0;
-  /* 翻書效果：默認狀態 */
-  opacity: 0.6;
-  transform: scale(0.92) translateZ(0);
+}
+
+/* 移動端專用樣式 */
+@media (max-width: 767px) {
+  .favorite-item {
+    /* 卡片寬度：容器寬度減去左右各 24px，讓左右兩側可以顯示部分內容 */
+    width: calc(100vw - 48px);
+    min-width: calc(100vw - 48px);
+    max-width: calc(100vw - 48px);
+    /* 卡片高度：視口高度減去導航欄、搜尋欄、快速導航欄等 */
+    height: calc(100vh - var(--navbar-height, 60px) - 48px - 56px - 8px);
+    max-height: calc(100vh - var(--navbar-height, 60px) - 48px - 56px - 8px);
+    flex-shrink: 0;
+    /* 確保觸摸事件可以正常傳遞 */
+    touch-action: pan-x pan-y;
+    /* 防止意外觸發縮放 */
+    -webkit-user-select: none;
+    user-select: none;
+    /* 優化渲染性能 */
+    will-change: transform, opacity;
+    /* 啟用硬件加速 */
+    transform: translateZ(0);
+    /* 翻書效果：默認狀態 */
+    opacity: 0.6;
+    transform: scale(0.92) translateZ(0);
+    /* 確保內容可以垂直滾動 */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 .favorite-item.card-active {
   opacity: 1;
   transform: scale(1) translateZ(0);
   z-index: 10;
-  box-shadow: 
+  box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.25),
     0 2px 8px rgba(0, 0, 0, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -270,7 +286,27 @@ const handleViewOnMap = () => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 移動端專用：優化節點信息區布局 */
+@media (max-width: 767px) {
+  .node-info-section {
+    padding: 12px 12px 0 12px;
+    gap: 8px;
+    /* 確保 node-details 能夠填滿剩餘空間 */
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .node-header {
+    padding-bottom: 8px;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
 }
 
 .node-header {
@@ -280,6 +316,7 @@ const handleViewOnMap = () => {
   padding-bottom: 10px;
   border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
   margin-bottom: 2px;
+  flex-shrink: 0;
 }
 
 .node-name {
@@ -338,6 +375,8 @@ const handleViewOnMap = () => {
   gap: 8px;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .info-row {
@@ -375,6 +414,112 @@ const handleViewOnMap = () => {
   letter-spacing: -0.1px;
 }
 
+/* 移動端專用：固定高度且緊湊的排版 */
+@media (max-width: 767px) {
+  .node-details {
+    /* 使用 flex: 1 填滿剩餘空間，而不是固定高度 */
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    /* 使用網格布局，兩列顯示，更專業 */
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+    /* 緊湊的內邊距 */
+    padding: 8px 0;
+    /* 優化滾動 */
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* 自定義滾動條樣式 */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    /* 優化滾動性能 */
+    -webkit-overflow-scrolling: touch;
+    /* 確保填滿容器 */
+    box-sizing: border-box;
+  }
+
+  .node-details::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  .node-details::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .node-details::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
+
+  .node-details::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .info-row {
+    /* 網格布局下，每個 info-row 佔據一個網格單元 */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 4px;
+    min-height: auto;
+    /* 添加背景和邊框，更專業 */
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 0.5px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    /* 確保內容對齊 */
+    box-sizing: border-box;
+  }
+
+  .info-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .label {
+    /* 更緊湊的字體大小 */
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 600;
+    min-width: auto;
+    width: 100%;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    line-height: 1.3;
+    margin-bottom: 0;
+    /* 添加微妙的背景 */
+    padding-bottom: 2px;
+  }
+
+  .value {
+    /* 更突出的值顯示 */
+    font-size: 13px;
+    color: #ffffff;
+    font-weight: 500;
+    width: 100%;
+    line-height: 1.5;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    /* 確保數字和文字對齊 */
+    display: flex;
+    align-items: center;
+    min-height: 20px;
+  }
+
+  /* 特殊值的樣式優化 */
+  .value :deep(.el-tag) {
+    font-size: 11px;
+    padding: 4px 10px;
+    margin-top: 0;
+    font-weight: 600;
+  }
+}
+
 /* iOS 風格標籤 */
 .value :deep(.el-tag) {
   background: rgba(0, 122, 255, 0.15);
@@ -386,6 +531,17 @@ const handleViewOnMap = () => {
   font-weight: 500;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+/* 桌面端標籤優化 */
+@media (min-width: 768px) {
+  .value :deep(.el-tag) {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 8px;
+  }
 }
 
 .action-btn {
@@ -428,6 +584,7 @@ const handleViewOnMap = () => {
   min-height: 240px;
   height: 240px;
   max-height: 240px;
+  flex-shrink: 0;
   display: flex;
   align-items: stretch;
   justify-content: stretch;
@@ -438,7 +595,23 @@ const handleViewOnMap = () => {
   box-sizing: border-box;
 }
 
-.chart-section > * {
+/* 移動端專用：讓圖表與 node-details 更緊湊 */
+@media (max-width: 767px) {
+  .chart-section {
+    padding: 8px 12px 12px 12px;
+    border-top: none;
+    border-radius: 0 0 16px 16px;
+    margin-top: 0;
+  }
+
+  /* 移除 node-details 的底部間距，讓它與圖表更緊密 */
+  .node-details {
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+}
+
+.chart-section>* {
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -474,10 +647,13 @@ const handleViewOnMap = () => {
     margin-bottom: 0;
     border-radius: 16px;
     /* iOS 風格桌面陰影 */
-    box-shadow: 
+    box-shadow:
       0 4px 16px rgba(0, 0, 0, 0.12),
       0 2px 8px rgba(0, 0, 0, 0.08),
       inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    /* 桌面端：不透明，正常大小 */
+    opacity: 1;
+    transform: none;
   }
 
   .node-info-section {
@@ -508,8 +684,8 @@ const handleViewOnMap = () => {
     overflow: hidden;
     box-sizing: border-box;
   }
-  
-  .chart-section > * {
+
+  .chart-section>* {
     width: 100%;
     height: 100%;
     min-height: 0;
@@ -520,25 +696,49 @@ const handleViewOnMap = () => {
   .node-details {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px 16px;
+    gap: 12px 16px;
+    padding: 4px 0;
   }
 
   .info-row {
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     min-height: auto;
+    /* 專業的卡片式設計 */
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 0.5px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box;
+    /* 添加微妙的陰影 */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .info-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
   .label {
     min-width: auto;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    line-height: 1.4;
+    margin-bottom: 2px;
   }
 
   .value {
-    font-size: 14px;
+    font-size: 15px;
     word-break: break-word;
     color: #ffffff;
+    font-weight: 500;
+    line-height: 1.5;
   }
 }
 
@@ -546,6 +746,7 @@ const handleViewOnMap = () => {
 @media (min-width: 1024px) {
   .node-info-section {
     flex: 0 0 360px;
+    padding: 20px;
   }
 
   .chart-section {
@@ -556,15 +757,30 @@ const handleViewOnMap = () => {
 
   .node-details {
     grid-template-columns: 1fr 1fr;
-    gap: 12px 20px;
+    gap: 14px 20px;
+    padding: 6px 0;
+  }
+
+  .info-row {
+    padding: 16px 18px;
+    border-radius: 14px;
   }
 
   .label {
-    font-size: 13px;
+    font-size: 11px;
+    letter-spacing: 1px;
   }
 
   .value {
-    font-size: 15px;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  /* 優化標籤樣式 */
+  .value :deep(.el-tag) {
+    font-size: 12px;
+    padding: 4px 12px;
+    font-weight: 600;
   }
 }
 
@@ -572,6 +788,7 @@ const handleViewOnMap = () => {
 @media (min-width: 1400px) {
   .node-info-section {
     flex: 0 0 400px;
+    padding: 24px;
   }
 
   .chart-section {
@@ -588,9 +805,31 @@ const handleViewOnMap = () => {
     font-size: 26px;
   }
 
+  .node-details {
+    gap: 16px 24px;
+    padding: 8px 0;
+  }
+
   .info-row {
     flex-direction: column;
+    padding: 18px 20px;
+    border-radius: 16px;
+  }
+
+  .label {
+    font-size: 12px;
+    letter-spacing: 1.2px;
+  }
+
+  .value {
+    font-size: 17px;
+    font-weight: 500;
+  }
+
+  /* 超大螢幕優化標籤 */
+  .value :deep(.el-tag) {
+    font-size: 13px;
+    padding: 5px 14px;
   }
 }
 </style>
-

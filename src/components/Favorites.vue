@@ -3,13 +3,11 @@
     <!-- 搜尋欄 -->
     <NodeSearchBar :nodes="allNodes" :show-refresh-button="false" mode="favorites" display-mode="icon" theme="dark"
       @toggle-favorite="handleToggleFavoriteFromSearch" />
-
     <div v-if="favoriteNodes.length === 0" class="empty-state">
       <div class="empty-icon">⭐</div>
       <h3>尚未收藏任何節點</h3>
       <p>在地圖上點擊節點，或使用上方搜尋功能將它們添加到最愛清單</p>
     </div>
-
     <template v-else>
       <!-- 快速導航條（僅移動端顯示） -->
       <div v-if="windowWidth < 768" class="quick-nav">
@@ -18,9 +16,8 @@
             <!-- 插入位置指示器（在項目前面） -->
             <div v-if="dragOverIndex === index && insertPosition === 'before' && draggedIndex !== index"
               class="drop-indicator"></div>
-            
             <button :ref="el => setNavItemRef(el, index)"
-              class="quick-nav-item" :class="{ 
+              class="quick-nav-item" :class="{
                 active: activeIndex === index,
                 dragging: draggedIndex === index,
                 'drag-over': dragOverIndex === index
@@ -38,30 +35,23 @@
               @touchend="handleNavTouchEnd($event)">
               <span class="nav-item-name">{{ node.long_name || node.short_name || '未知節點' }}</span>
             </button>
-            
             <!-- 插入位置指示器（在項目後面） -->
             <div v-if="dragOverIndex === index && insertPosition === 'after' && draggedIndex !== index"
               class="drop-indicator"></div>
           </template>
-          
           <!-- 插入到最後的指示器 -->
-          <div v-if="dragOverIndex === favoriteNodes.length - 1 && insertPosition === 'after' && draggedIndex !== favoriteNodes.length - 1"
-            class="drop-indicator"></div>
+          <div v-if="dragOverIndex === favoriteNodes.length - 1 && insertPosition === 'after' && draggedIndex !== favoriteNodes.length - 1" class="drop-indicator"></div>
         </div>
       </div>
-
       <div ref="listContainer" class="favorites-container" @scroll="handleScroll" @touchstart="handleTouchStart" @touchend="handleTouchEnd" @touchmove="handleTouchMove">
         <div class="favorites-list">
-          <FavoriteNodeCard v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setCardRef(el, index)"
-            :node="node" :metrics="nodeMetrics[node.node_id] || []" :loading-metrics="loadingMetrics[node.node_id] || false"
-            :chart-height="chartHeight" :card-index="index" :active-index="activeIndex"
-            @remove="removeFavorite" @view-on-map="viewOnMap" />
+          <FavoriteNodeCard v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setCardRef(el, index)" :node="node" :metrics="nodeMetrics[node.node_id] || []" :loading-metrics="loadingMetrics[node.node_id] || false" :chart-height="chartHeight" :card-index="index"
+            :active-index="activeIndex" @remove="removeFavorite" @view-on-map="viewOnMap" />
         </div>
       </div>
     </template>
   </div>
 </template>
-
 <script setup>
 import { ref, computed, onMounted, onUnmounted, onActivated, defineEmits, nextTick } from 'vue';
 import NodeSearchBar from './NodeSearchBar.vue';
@@ -276,7 +266,7 @@ const scrollToCard = async (index) => {
   const cardWidth = containerWidth - 48; // calc(100vw - 48px)，左右各留 24px
   const gap = 12;
   const paddingLeft = 24; // .favorites-list 的 padding-left
-  
+
   // 計算卡片左邊緣位置
   const cardLeftEdge = paddingLeft + index * (cardWidth + gap);
   // 計算卡片中心位置
@@ -306,7 +296,7 @@ const scrollToCard = async (index) => {
     cancelAnimationFrame(scrollAnimationFrame.value);
     scrollAnimationFrame.value = null;
   }
-  
+
   setTimeout(() => {
     isScrolling.value = false;
   }, 500);
@@ -352,7 +342,7 @@ const handleNavItemClick = (index, event) => {
     event.stopPropagation();
     return;
   }
-  
+
   // 檢查是否剛剛完成拖曳（在短時間內）
   const timeSinceTouchStart = Date.now() - navTouchStartTime.value;
   if (timeSinceTouchStart < 200 && draggedIndex.value !== null) {
@@ -361,12 +351,12 @@ const handleNavItemClick = (index, event) => {
     event.stopPropagation();
     return;
   }
-  
+
   // 檢查是否有明顯的移動（可能是拖曳意圖）
   if (touchDragStartIndex.value === index) {
     const deltaX = Math.abs(touchDragStartX.value - (event.clientX || touchDragStartX.value));
     const deltaY = Math.abs(touchDragStartY.value - (event.clientY || touchDragStartY.value));
-    
+
     // 如果移動距離很小（< 5px），視為點擊
     if (deltaX < 5 && deltaY < 5) {
       scrollToCard(index);
@@ -387,14 +377,14 @@ const handleDragStart = (index, event) => {
   isDragging.value = true;
   dragOverIndex.value = null;
   insertPosition.value = null;
-  
+
   // 設置拖曳數據
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/html', index.toString());
     event.dataTransfer.setData('text/plain', index.toString());
   }
-  
+
   // 設置拖曳圖像
   const target = event.currentTarget || event.target;
   if (target) {
@@ -417,7 +407,7 @@ const handleDragEnd = (event) => {
   if (target) {
     target.style.opacity = '1';
   }
-  
+
   // 延遲重置狀態，避免與 drop 事件衝突
   setTimeout(() => {
     draggedIndex.value = null;
@@ -435,7 +425,7 @@ const handleDragOver = (index, event) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const midpoint = rect.left + rect.width / 2;
     const mouseX = event.clientX;
-    
+
     dragOverIndex.value = index;
     // 根據鼠標位置決定插入位置
     if (mouseX > midpoint) {
@@ -453,7 +443,7 @@ const handleDragEnter = (index, event) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const midpoint = rect.left + rect.width / 2;
     const mouseX = event.clientX || (event.touches && event.touches[0]?.clientX) || midpoint;
-    
+
     dragOverIndex.value = index;
     // 根據鼠標位置決定插入位置
     if (mouseX > midpoint) {
@@ -504,7 +494,7 @@ const handleDrop = (index, event) => {
 
   // 重新排序節點
   reorderNodes(draggedIndex.value, targetIndex);
-  
+
   // 延遲重置狀態，確保動畫完成
   setTimeout(() => {
     draggedIndex.value = null;
@@ -517,13 +507,13 @@ const handleDrop = (index, event) => {
 // 觸摸拖曳開始
 const handleNavTouchStart = (index, event) => {
   if (windowWidth.value >= 768) return;
-  
+
   // 清除之前的長按計時器
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value);
     longPressTimer.value = null;
   }
-  
+
   // 重置所有拖曳相關狀態
   touchDragStartIndex.value = index;
   touchDragStartX.value = event.touches[0].clientX;
@@ -537,30 +527,30 @@ const handleNavTouchStart = (index, event) => {
   touchStartElement.value = event.target;
   touchMoveHistory.value = []; // 重置移動歷史
   isScrollingNav.value = false;
-  
+
   // 記錄初始滾動位置
   const initialScrollLeft = quickNavScroll.value?.scrollLeft || 0;
   const initialScrollTime = Date.now();
-  
+
   // 設置長按計時器（手機端300ms，更友好）
   longPressTimer.value = setTimeout(() => {
     // 檢查是否在長按期間發生了滾動
     const currentScrollLeft = quickNavScroll.value?.scrollLeft || 0;
     const scrollDiff = Math.abs(currentScrollLeft - initialScrollLeft);
     const timeSinceStart = Date.now() - initialScrollTime;
-    
+
     // 如果滾動了超過5px，或者檢測到滾動狀態，取消長按
     if (scrollDiff > 5 || isScrollingNav.value) {
       longPressTimer.value = null;
       return;
     }
-    
+
     // 再次檢查是否仍在觸摸（防止用戶已經放開）
     if (touchDragStartIndex.value === null || touchDragStartIndex.value !== index) {
       longPressTimer.value = null;
       return;
     }
-    
+
     isLongPress.value = true;
     // 觸覺反饋（如果支持）
     if (navigator.vibrate) {
@@ -577,27 +567,27 @@ const handleNavTouchStart = (index, event) => {
 // 觸摸拖曳移動
 const handleNavTouchMove = (event) => {
   if (windowWidth.value >= 768 || touchDragStartIndex.value === null) return;
-  
+
   const touch = event.touches[0];
   if (!touch) return;
-  
+
   const currentTime = Date.now();
   const deltaX = touch.clientX - touchDragStartX.value;
   const deltaY = touch.clientY - touchDragStartY.value;
   const absDeltaX = Math.abs(deltaX);
   const absDeltaY = Math.abs(deltaY);
-  
+
   // 記錄移動歷史（用於檢測滾動速度）
   touchMoveHistory.value.push({
     x: touch.clientX,
     y: touch.clientY,
     time: currentTime
   });
-  
+
   // 只保留最近200ms的歷史
   const recentHistory = touchMoveHistory.value.filter(h => currentTime - h.time < 200);
   touchMoveHistory.value = recentHistory;
-  
+
   // 檢測滾動：檢查快速導航條是否在滾動
   // 通過比較觸摸位置和項目位置的變化來判斷
   if (touchMoveHistory.value.length >= 2) {
@@ -605,13 +595,13 @@ const handleNavTouchMove = (event) => {
     const lastPoint = touchMoveHistory.value[touchMoveHistory.value.length - 1];
     const timeDiff = lastPoint.time - firstPoint.time;
     const distance = Math.abs(lastPoint.x - firstPoint.x);
-    
+
     // 如果移動速度太快（超過0.25px/ms），視為快速滾動
     if (timeDiff > 0 && distance / timeDiff > 0.25) {
       isScrollingNav.value = true;
     }
   }
-  
+
   // 如果移動距離較大，取消長按計時器（可能是滾動）
   if (absDeltaX > 5 || absDeltaY > 5) {
     if (longPressTimer.value) {
@@ -622,19 +612,19 @@ const handleNavTouchMove = (event) => {
         navItemRefs.value[touchDragStartIndex.value].classList.remove('long-press-active');
       }
     }
-    
+
     // 如果是垂直滾動為主，不處理拖曳
     if (absDeltaY > absDeltaX * 1.2) {
       return; // 允許正常滾動
     }
-    
+
     // 如果檢測到快速水平移動（可能是滾動），不觸發拖曳
     if (touchMoveHistory.value.length >= 2) {
       const firstPoint = touchMoveHistory.value[0];
       const lastPoint = touchMoveHistory.value[touchMoveHistory.value.length - 1];
       const timeDiff = lastPoint.time - firstPoint.time;
       const distance = Math.abs(lastPoint.x - firstPoint.x);
-      
+
       // 如果移動速度太快（超過0.3px/ms），視為滾動
       if (timeDiff > 0 && distance / timeDiff > 0.3) {
         isScrollingNav.value = true;
@@ -642,24 +632,24 @@ const handleNavTouchMove = (event) => {
       }
     }
   }
-  
+
   // 只有在長按後才允許拖曳（移除快速移動觸發拖曳的邏輯）
   // 並且確保不是在滾動狀態
   if (!isLongPress.value || isScrollingNav.value) {
     return;
   }
-  
+
   // 確保是水平移動為主
   if (absDeltaX > 3 && absDeltaX > absDeltaY * 1.2) {
     // 防止快速導航條滾動
     if (quickNavScroll.value && !isDragging.value) {
       quickNavScroll.value.style.overflowX = 'hidden';
     }
-    
+
     if (!isDragging.value) {
       isDragging.value = true;
       draggedIndex.value = touchDragStartIndex.value;
-      
+
       // 設置拖曳項目的樣式
       if (navItemRefs.value[touchDragStartIndex.value]) {
         const item = navItemRefs.value[touchDragStartIndex.value];
@@ -668,13 +658,13 @@ const handleNavTouchMove = (event) => {
         item.style.zIndex = '1000';
         item.classList.remove('long-press-active');
       }
-      
+
       // 觸覺反饋：開始拖曳
       if (navigator.vibrate) {
         navigator.vibrate(20);
       }
     }
-    
+
     // 找到當前觸摸位置下的元素
     const touchElement = document.elementFromPoint(touch.clientX, touch.clientY);
     if (touchElement) {
@@ -683,12 +673,12 @@ const handleNavTouchMove = (event) => {
         // 找到對應的索引 - 使用更可靠的方法
         const allNavItems = Array.from(quickNavScroll.value?.querySelectorAll('.quick-nav-item') || []);
         const currentIndex = allNavItems.indexOf(navItem);
-        
+
         if (currentIndex !== -1 && currentIndex !== draggedIndex.value) {
           const rect = navItem.getBoundingClientRect();
           const midpoint = rect.left + rect.width / 2;
           const touchX = touch.clientX;
-          
+
           dragOverIndex.value = currentIndex;
           // 根據觸摸位置決定插入位置
           if (touchX > midpoint) {
@@ -699,7 +689,7 @@ const handleNavTouchMove = (event) => {
         }
       }
     }
-    
+
     event.preventDefault();
     event.stopPropagation();
   }
@@ -708,19 +698,19 @@ const handleNavTouchMove = (event) => {
 // 觸摸拖曳結束
 const handleNavTouchEnd = (event) => {
   if (windowWidth.value >= 768 || touchDragStartIndex.value === null) return;
-  
+
   // 清除長按計時器
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value);
     longPressTimer.value = null;
   }
-  
+
   // 恢復快速導航條滾動
   if (quickNavScroll.value) {
     quickNavScroll.value.style.overflowX = 'auto';
     quickNavScroll.value.style.scrollBehavior = 'smooth';
   }
-  
+
   // 恢復拖曳項目的樣式
   if (draggedIndex.value !== null && navItemRefs.value[draggedIndex.value]) {
     const item = navItemRefs.value[draggedIndex.value];
@@ -729,14 +719,14 @@ const handleNavTouchEnd = (event) => {
     item.style.zIndex = '';
     item.classList.remove('long-press-active');
   }
-  
+
   // 計算移動距離
   const touchEndX = event.changedTouches?.[0]?.clientX || touchDragStartX.value;
   const touchEndY = event.changedTouches?.[0]?.clientY || touchDragStartY.value;
   const deltaX = Math.abs(touchEndX - touchDragStartX.value);
   const deltaY = Math.abs(touchEndY - touchDragStartY.value);
   const totalMove = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-  
+
   // 如果檢測到是滾動操作，不處理拖曳
   if (isScrollingNav.value) {
     // 延遲重置，避免立即觸發點擊
@@ -750,7 +740,7 @@ const handleNavTouchEnd = (event) => {
     }, 100);
     return;
   }
-  
+
   // 如果沒有拖曳，可能是點擊或滾動
   if (!isDragging.value) {
     // 如果移動距離很小（< 8px），可能是點擊，允許點擊事件觸發
@@ -763,7 +753,7 @@ const handleNavTouchEnd = (event) => {
       draggedIndex.value = null;
       return;
     }
-    
+
     // 有明顯移動但不是拖曳，延遲重置
     setTimeout(() => {
       touchDragStartIndex.value = null;
@@ -774,7 +764,7 @@ const handleNavTouchEnd = (event) => {
     }, 150);
     return;
   }
-  
+
   if (draggedIndex.value !== null && dragOverIndex.value !== null && draggedIndex.value !== dragOverIndex.value) {
     // 根據插入位置計算目標索引
     let targetIndex = dragOverIndex.value;
@@ -783,16 +773,16 @@ const handleNavTouchEnd = (event) => {
     } else {
       targetIndex = dragOverIndex.value;
     }
-    
+
     // 重新排序節點
     reorderNodes(draggedIndex.value, targetIndex);
   }
-  
+
   // 清理長按視覺反饋
   if (touchDragStartIndex.value !== null && navItemRefs.value[touchDragStartIndex.value]) {
     navItemRefs.value[touchDragStartIndex.value].classList.remove('long-press-active');
   }
-  
+
   // 延遲重置狀態，確保動畫完成
   setTimeout(() => {
     touchDragStartIndex.value = null;
@@ -812,27 +802,27 @@ const reorderNodes = (fromIndex, toIndex) => {
   // 確保索引在有效範圍內
   const maxIndex = favoriteNodes.value.length - 1;
   const clampedToIndex = Math.max(0, Math.min(toIndex, maxIndex));
-  
+
   // 如果 fromIndex 和 toIndex 相同，不需要重新排序
   if (fromIndex === clampedToIndex) {
     return;
   }
-  
+
   const newNodes = [...favoriteNodes.value];
   const [movedNode] = newNodes.splice(fromIndex, 1);
-  
+
   // 如果目標索引大於原索引，需要減1（因為已經移除了元素）
   const adjustedToIndex = fromIndex < clampedToIndex ? clampedToIndex - 1 : clampedToIndex;
   newNodes.splice(adjustedToIndex, 0, movedNode);
-  
+
   favoriteNodes.value = newNodes;
-  
+
   // 保存到 localStorage
   localStorage.setItem('meshtastic_favorites', JSON.stringify(favoriteNodes.value));
-  
+
   // 觸發自定義事件
   window.dispatchEvent(new CustomEvent('favorites-updated'));
-  
+
   // 更新活動索引（如果受影響）
   if (activeIndex.value === fromIndex) {
     activeIndex.value = adjustedToIndex;
@@ -841,7 +831,7 @@ const reorderNodes = (fromIndex, toIndex) => {
   } else if (activeIndex.value < fromIndex && activeIndex.value >= clampedToIndex) {
     activeIndex.value++;
   }
-  
+
   // 等待 DOM 更新後重新滾動到當前卡片
   nextTick(() => {
     if (activeIndex.value !== null) {
@@ -860,7 +850,7 @@ const handleTouchStart = (e) => {
   touchLastX.value = touch.clientX;
   touchStartTime.value = Date.now();
   touchLastTime.value = Date.now();
-  
+
   // 清除自動滾動計時器和動畫幀
   if (scrollTimeout.value) {
     clearTimeout(scrollTimeout.value);
@@ -878,7 +868,7 @@ const handleTouchMove = (e) => {
   const touch = e.touches[0];
   touchLastX.value = touch.clientX;
   touchLastTime.value = Date.now();
-  
+
   // 清除自動滾動計時器和動畫幀
   if (scrollTimeout.value) {
     clearTimeout(scrollTimeout.value);
@@ -893,24 +883,24 @@ const handleTouchMove = (e) => {
 // 處理觸摸結束 - 自動居中最近的卡片
 const handleTouchEnd = (e) => {
   if (windowWidth.value >= 768 || !listContainer.value) return;
-  
+
   isTouching.value = false;
-  
+
   // 計算滑動距離和速度
   const touchEndX = e.changedTouches[0].clientX;
   const touchEndY = e.changedTouches[0].clientY;
   const deltaX = touchEndX - touchStartX.value;
   const deltaY = touchEndY - touchStartY.value;
   const deltaTime = Date.now() - touchLastTime.value;
-  
+
   // 如果是垂直滑動為主，不處理
   if (Math.abs(deltaY) > Math.abs(deltaX)) {
     return;
   }
-  
+
   // 計算滑動速度 (px/ms)
   const velocity = deltaTime > 0 ? Math.abs(deltaX) / deltaTime : 0;
-  
+
   // 使用 requestAnimationFrame 優化性能，減少延遲
   scrollAnimationFrame.value = requestAnimationFrame(() => {
     // 根據速度決定延遲時間，快速滑動時減少延遲
@@ -926,7 +916,7 @@ const handleTouchEnd = (e) => {
 // 自動居中最近的卡片（支持根據滑動方向和速度調整目標）
 const snapToNearestCard = (deltaX = 0, velocity = 0) => {
   if (!listContainer.value || isScrolling.value || windowWidth.value >= 768) return;
-  
+
   const container = listContainer.value;
   const scrollLeft = container.scrollLeft;
   const containerWidth = container.clientWidth;
@@ -934,12 +924,12 @@ const snapToNearestCard = (deltaX = 0, velocity = 0) => {
   const gap = 12;
   const cardTotalWidth = cardWidth + gap;
   const paddingLeft = 24; // .favorites-list 的 padding-left
-  
+
   // 計算當前滾動位置對應的卡片索引
   // 考慮 padding-left，計算實際的卡片位置
   const adjustedScrollLeft = scrollLeft + paddingLeft;
   let currentIndex = Math.round(adjustedScrollLeft / cardTotalWidth);
-  
+
   // 根據滑動方向和速度調整目標索引
   // 如果快速向右滑動（deltaX > 0），優先選擇下一個卡片
   // 如果快速向左滑動（deltaX < 0），優先選擇上一個卡片
@@ -952,9 +942,9 @@ const snapToNearestCard = (deltaX = 0, velocity = 0) => {
       currentIndex = Math.max(currentIndex - 1, 0);
     }
   }
-  
+
   const clampedIndex = Math.max(0, Math.min(currentIndex, favoriteNodes.value.length - 1));
-  
+
   // 計算卡片左邊緣位置
   const cardLeftEdge = paddingLeft + clampedIndex * (cardWidth + gap);
   // 計算卡片中心位置
@@ -963,33 +953,33 @@ const snapToNearestCard = (deltaX = 0, velocity = 0) => {
   const containerCenter = containerWidth / 2;
   // 計算目標滾動位置（讓卡片中心對齊容器中心）
   const targetScrollLeft = cardCenter - containerCenter;
-  
+
   // 如果已經接近目標位置（容差增大），不需要滾動
   if (Math.abs(scrollLeft - targetScrollLeft) < 10) {
     activeIndex.value = clampedIndex;
     scrollNavToItem(clampedIndex);
     return;
   }
-  
+
   // 平滑滾動到居中位置
   isScrolling.value = true;
-  
+
   // 使用自定義動畫實現更流暢的滾動
   const startScrollLeft = scrollLeft;
   const distance = targetScrollLeft - startScrollLeft;
   const duration = Math.min(Math.abs(distance) * 0.5, 400); // 根據距離調整時長，最多400ms
   const startTime = Date.now();
-  
+
   const animateScroll = () => {
     const elapsed = Date.now() - startTime;
     const progress = Math.min(elapsed / duration, 1);
-    
+
     // 使用 ease-out 緩動函數，讓滾動更自然
     const easeOut = 1 - Math.pow(1 - progress, 3);
     const currentScrollLeft = startScrollLeft + distance * easeOut;
-    
+
     container.scrollLeft = currentScrollLeft;
-    
+
     if (progress < 1) {
       requestAnimationFrame(animateScroll);
     } else {
@@ -998,9 +988,9 @@ const snapToNearestCard = (deltaX = 0, velocity = 0) => {
       container.scrollLeft = Math.max(0, targetScrollLeft);
     }
   };
-  
+
   requestAnimationFrame(animateScroll);
-  
+
   // 更新活動索引
   activeIndex.value = clampedIndex;
   scrollNavToItem(clampedIndex);
@@ -1028,7 +1018,7 @@ const handleScroll = () => {
     // 當活動索引變化時，自動滾動快速導航條，使對應的導航項顯示在最左方
     scrollNavToItem(clampedIndex);
   }
-  
+
   // 如果不是觸摸狀態，在滾動停止後自動居中（使用 requestAnimationFrame 優化）
   // 但如果是程序化滾動（isScrolling），則不觸發 snap
   if (!isTouching.value && !isScrolling.value) {
@@ -1070,7 +1060,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('storage', handleStorageChange);
   window.removeEventListener('favorites-updated', handleFavoritesUpdated);
-  
+
   // 清理計時器和動畫幀
   if (scrollTimeout.value) {
     clearTimeout(scrollTimeout.value);
@@ -1105,7 +1095,6 @@ defineExpose({
   refresh: loadFavorites
 });
 </script>
-
 <style scoped>
 .favorites-wrapper {
   width: 100%;
@@ -1127,20 +1116,26 @@ defineExpose({
   padding-bottom: 0;
   box-sizing: border-box;
   position: relative;
-  /* 移動端允許水平滾動 */
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  /* 允許水平滾動 */
-  touch-action: pan-x;
-  /* 確保可以滾動 */
-  overscroll-behavior: contain;
-  /* 優化滾動性能 */
-  will-change: scroll-position;
-  /* 平滑滾動 */
-  scroll-behavior: smooth;
-  /* 讓左右兩側可以顯示部分內容 */
-  scroll-padding: 0 20%;
+}
+
+/* 移動端專用樣式 */
+@media (max-width: 767px) {
+  .favorites-container {
+    /* 移動端允許水平滾動 */
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    /* 允許水平滾動 */
+    touch-action: pan-x;
+    /* 確保可以滾動 */
+    overscroll-behavior: contain;
+    /* 優化滾動性能 */
+    will-change: scroll-position;
+    /* 平滑滾動 */
+    scroll-behavior: smooth;
+    /* 讓左右兩側可以顯示部分內容 */
+    scroll-padding: 0 20%;
+  }
 }
 
 .favorites-header {
@@ -1326,20 +1321,20 @@ defineExpose({
     background: rgba(72, 161, 103, 0.1);
     border: 1px solid rgba(72, 161, 103, 0.2);
   }
-  
+
   .quick-nav-item:hover .drag-handle,
   .quick-nav-item:active .drag-handle {
     background: rgba(72, 161, 103, 0.2);
     border-color: rgba(72, 161, 103, 0.4);
     color: rgba(72, 161, 103, 1);
   }
-  
+
   .quick-nav-item {
     padding: 5px 9px;
     font-size: 11px;
     min-height: 30px;
   }
-  
+
   .nav-item-name {
     max-width: 90px;
   }
@@ -1397,10 +1392,13 @@ defineExpose({
 }
 
 @keyframes dropIndicatorPulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
     transform: scaleY(1);
   }
+
   50% {
     opacity: 0.7;
     transform: scaleY(1.1);
@@ -1432,18 +1430,20 @@ defineExpose({
 }
 
 /* Favorites List - 移動端水平滾動 */
-.favorites-list {
-  display: flex;
-  flex-direction: row;
-  gap: 12px;
-  width: max-content;
-  /* 左右各留 24px 空間顯示相鄰卡片的部分內容 */
-  padding-left: 24px;
-  padding-right: 24px;
-  min-width: 100%;
-  /* 優化滾動性能 */
-  will-change: transform;
-  align-items: center;
+@media (max-width: 767px) {
+  .favorites-list {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    width: max-content;
+    /* 左右各留 24px 空間顯示相鄰卡片的部分內容 */
+    padding-left: 24px;
+    padding-right: 24px;
+    min-width: 100%;
+    /* 優化滾動性能 */
+    will-change: transform;
+    align-items: center;
+  }
 }
 
 /* Tablet and Desktop Styles - 左右佈局 */
@@ -1462,7 +1462,15 @@ defineExpose({
     padding-bottom: 0;
     overflow-x: hidden;
     overflow-y: auto;
-    touch-action: pan-y;
+  }
+
+  .favorites-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .favorites-header {
@@ -1498,14 +1506,6 @@ defineExpose({
 
   .empty-state p {
     font-size: 16px;
-  }
-
-  .favorites-list {
-    flex-direction: column;
-    gap: 20px;
-    width: 100%;
-    padding-left: 0;
-    padding-right: 0;
   }
 }
 
