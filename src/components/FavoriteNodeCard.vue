@@ -31,7 +31,7 @@
         <div class="info-row">
           <span class="label">Short name</span>
           <span class="value">
-            <el-tag effect="dark">{{ node.short_name || '未知' }}</el-tag>
+            <el-tag :style="getShortNameTagStyle()" effect="dark">{{ node.short_name || '未知' }}</el-tag>
           </span>
         </div>
         <div class="info-row">
@@ -129,6 +129,7 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
+import { getNodeColorStyle } from '../utils/colorUtils.js';
 import DeviceMetricsChart from './DeviceMetricsChart.vue';
 
 const props = defineProps({
@@ -311,6 +312,11 @@ const getBatteryClass = (batteryLevel) => {
   if (batteryLevel >= 60) return 'battery-high';
   if (batteryLevel >= 30) return 'battery-medium';
   return 'battery-low';
+};
+
+// 根據 node_id_hex 獲取標籤樣式
+const getShortNameTagStyle = () => {
+  return getNodeColorStyle(props.node.node_id_hex || '');
 };
 </script>
 <style scoped>

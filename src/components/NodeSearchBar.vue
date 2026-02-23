@@ -21,8 +21,7 @@
           v-memo="[node.node_id, isNodeFavorited(node.node_id)]">
           <div class="result-info" @click="handleNodeSelect(node)">
             <div class="result-name">
-              <div class="result-short-name"
-                v-bind:style="{ backgroundColor: '#' + node.node_id_hex.slice(-6), color: isDarkColor('#' + node.node_id_hex.slice(-6)) ? 'white' : 'black' }">
+              <div class="result-short-name" v-bind:style="getNodeColorStyle(node.node_id_hex || '')">
                 {{ node.short_name }}</div>
               <div> {{ node.long_name || node.short_name || '未知節點' }}
                 <div class="result-id">{{ node.node_id_hex || node.node_id }}</div>
@@ -81,6 +80,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { Refresh, Close, Search } from '@element-plus/icons-vue';
+import { getNodeColorStyle } from '../utils/colorUtils.js';
 
 // Props
 const props = defineProps({
@@ -156,15 +156,6 @@ const favorites = ref([]);
 // 計算總節點數
 const totalNodesCount = computed(() => props.nodes.length);
 
-// 判斷顏色是否為深色
-const isDarkColor = (hexColor) => {
-  const c = hexColor.startsWith('#') ? hexColor.slice(1) : hexColor;
-  const r = parseInt(c.substring(0, 2), 16);
-  const g = parseInt(c.substring(2, 4), 16);
-  const b = parseInt(c.substring(4, 6), 16);
-  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-  return luminance < 128;
-};
 
 // 載入收藏列表
 const loadFavorites = () => {

@@ -27,8 +27,9 @@
     </div>
 
     <!-- 搜尋欄 -->
-    <NodeSearchBar display-mode="icon" :theme="isDarkMode ? 'dark' : 'light'" :nodes="nodes" :show-refresh-button="true" mode="map" @node-select="handleNodeSelectFromSearch"
-      @toggle-favorite="toggleFavoriteFromSearch" @refresh="refreshNodes" />
+    <NodeSearchBar display-mode="icon" :theme="isDarkMode ? 'dark' : 'light'" :nodes="nodes" :show-refresh-button="true"
+      mode="map" @node-select="handleNodeSelectFromSearch" @toggle-favorite="toggleFavoriteFromSearch"
+      @refresh="refreshNodes" />
   </div>
 </template>
 
@@ -39,6 +40,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
+import { getNodeColorStyle, isDarkColor } from '../utils/colorUtils.js';
 import NodeDrawer from './NodeDrawer.vue';
 import NodeSearchBar from './NodeSearchBar.vue';
 
@@ -459,9 +461,8 @@ const createNodeIcon = (node) => {
   const markerColor = isDarkMode.value ? '#00ff88' : '#0015d6ff';
   const shortName = node.short_name || '';
   const nodeIdHex = node.node_id_hex || '';
-  const bgColorHex = nodeIdHex.length >= 6 ? '#' + nodeIdHex.slice(-6) : '#ffffff';
+  const { backgroundColor: bgColorHex, color: textColor } = getNodeColorStyle(nodeIdHex);
   const isDarkBg = isDarkColor(bgColorHex);
-  const textColor = isDarkBg ? '#ffffff' : '#333333';
   const hasShortName = shortName && shortName.trim() !== '';
 
   const textHtml = hasShortName ? `
@@ -505,7 +506,7 @@ const createNodeIcon = (node) => {
 const updateMarkersColor = () => {
   const newColor = isDarkMode.value ? '#00ff88' : '#0015d6ff';
   let updatedCount = 0;
-  
+
   // 遍歷所有節點，通過 nodeMarkerMap 找到對應的標記並更新圖標
   nodes.value.forEach(node => {
     const marker = nodeMarkerMap.value.get(node.node_id);
@@ -521,7 +522,7 @@ const updateMarkersColor = () => {
       }
     }
   });
-  
+
   console.log(`標記顏色已更新: ${updatedCount} 個標記，顏色: ${newColor} (${isDarkMode.value ? '深色模式' : '淺色模式'})`);
 };
 
@@ -668,21 +669,6 @@ const renderNodes = () => {
   }
 };
 
-const isDarkColor = (hexColor) => {
-  // 去掉 #
-  const c = hexColor.startsWith('#') ? hexColor.slice(1) : hexColor;
-
-  // 解析 RGB
-  const r = parseInt(c.substring(0, 2), 16);
-  const g = parseInt(c.substring(2, 4), 16);
-  const b = parseInt(c.substring(4, 6), 16);
-
-  // 計算亮度（根據人眼敏感度加權）
-  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-
-  // 小於 128 → 視為「暗色背景」
-  return luminance < 128;
-};
 
 // 保存地圖狀態到 localStorage（帶防抖）
 const saveMapState = () => {
@@ -797,7 +783,7 @@ const toggleMapTheme = () => {
 
   currentTileLayer.value.addTo(map.value);
   console.log('地圖主題已切換為:', isDarkMode.value ? '深色模式' : '淺色模式');
-  
+
   // 直接更新標記顏色（性能優化：不重新渲染）
   updateMarkersColor();
 };
