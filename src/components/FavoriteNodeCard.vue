@@ -78,7 +78,7 @@
             <div class="metric-content">
               <span class="label">頻道利用率</span>
               <span class="value metric-value">{{ parseFloat(latestMetric.channel_utilization || 0).toFixed(1)
-                }}%</span>
+              }}%</span>
             </div>
           </div>
           <div v-if="latestMetric.air_util_tx !== undefined" class="info-row metric-card">
