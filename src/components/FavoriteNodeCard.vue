@@ -1,55 +1,126 @@
 <template>
   <div class="favorite-item" :class="{ 'card-active': cardIndex === activeIndex }" :style="cardStyle">
+    <!-- 移除按鈕 - 右上角浮動按鈕 -->
+    <button class="remove-btn-floating" @click="handleRemove" title="移除收藏">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path
+          d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"
+          fill="currentColor" />
+      </svg>
+    </button>
     <!-- 左側：節點信息 -->
     <div class="node-info-section">
       <div class="node-header">
         <div class="node-name">
-          <span class="node-icon">📡</span>
-          <strong>{{ node.long_name || node.short_name || '未知節點' }}</strong>
+          <div class="node-icon-wrapper">
+            <svg class="node-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- 無線網絡節點圖標 -->
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none" />
+              <path d="M12 1V5M12 19V23M1 12H5M19 12H23" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" />
+              <path d="M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div class="node-name-content">
+            <strong>{{ node.long_name || node.short_name || '未知節點' }}</strong>
+          </div>
         </div>
-        <button class="remove-btn" @click="handleRemove" title="移除"> 移除收藏 </button>
       </div>
       <div class="node-details">
         <div class="info-row">
-          <span class="label">Short name:</span>
+          <span class="label">Short name</span>
           <span class="value">
-            <el-tag effect="dark">{{ node.short_name || '未知' }}</el-tag></span>
+            <el-tag effect="dark">{{ node.short_name || '未知' }}</el-tag>
+          </span>
         </div>
         <div class="info-row">
-          <span class="label">ID:</span>
+          <span class="label">ID</span>
           <span class="value">{{ node.node_id_hex || node.node_id }}</span>
         </div>
         <div class="info-row">
-          <span class="label">型號:</span>
+          <span class="label">型號</span>
           <span class="value">{{ node.hardware_model_name || '未知' }}</span>
         </div>
         <div class="info-row">
-          <span class="label">位置:</span>
+          <span class="label">位置</span>
           <span class="value">{{ formatCoordinates(node.latitude, node.longitude) }}</span>
         </div>
         <template v-if="latestMetric">
-          <div class="info-row">
-            <span class="label">電量:</span>
-            <span class="value">{{ latestMetric.battery_level || 'N/A' }}%</span>
+          <div v-if="latestMetric.battery_level !== undefined" class="info-row metric-card">
+            <div class="metric-icon battery-icon" :class="getBatteryClass(latestMetric.battery_level)">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- 電池圖標 -->
+                <rect x="2" y="7" width="18" height="10" rx="2" stroke="currentColor" stroke-width="2" fill="none" />
+                <rect x="20" y="10" width="2" height="4" fill="currentColor" />
+                <rect x="4" y="9" :width="(latestMetric.battery_level / 100) * 14" height="6" rx="1"
+                  fill="currentColor" />
+              </svg>
+            </div>
+            <div class="metric-content">
+              <span class="label">電量</span>
+              <span class="value metric-value">{{ latestMetric.battery_level }}%</span>
+            </div>
           </div>
-          <div v-if="latestMetric.channel_utilization !== undefined" class="info-row">
-            <span class="label">頻道利用率:</span>
-            <span class="value">{{ parseFloat(latestMetric.channel_utilization || 0).toFixed(1) }}%</span>
+          <div v-if="latestMetric.channel_utilization !== undefined" class="info-row metric-card">
+            <div class="metric-icon channel-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- 頻道/信號強度圖標 -->
+                <path d="M2 12C2 12 5 8 12 8C19 8 22 12 22 12" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" fill="none" />
+                <path d="M5 12C5 12 7 10 12 10C17 10 19 12 19 12" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" fill="none" />
+                <path d="M8 12C8 12 9 11 12 11C15 11 16 12 16 12" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" fill="none" />
+                <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+              </svg>
+            </div>
+            <div class="metric-content">
+              <span class="label">頻道利用率</span>
+              <span class="value metric-value">{{ parseFloat(latestMetric.channel_utilization || 0).toFixed(1)
+                }}%</span>
+            </div>
           </div>
-          <div v-if="latestMetric.air_util_tx !== undefined" class="info-row">
-            <span class="label">空中傳輸率:</span>
-            <span class="value">{{ parseFloat(latestMetric.air_util_tx || 0).toFixed(1) }}%</span>
+          <div v-if="latestMetric.air_util_tx !== undefined" class="info-row metric-card">
+            <div class="metric-icon air-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- 空中傳輸/數據流圖標 -->
+                <path d="M3 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <path d="M6 8L3 12L6 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" fill="none" />
+                <path d="M18 8L21 12L18 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" fill="none" />
+                <circle cx="12" cy="12" r="2" fill="currentColor" />
+                <path d="M9 9L12 12L9 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                  stroke-linejoin="round" fill="none" />
+                <path d="M15 9L12 12L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                  stroke-linejoin="round" fill="none" />
+              </svg>
+            </div>
+            <div class="metric-content">
+              <span class="label">空中傳輸率</span>
+              <span class="value metric-value">{{ parseFloat(latestMetric.air_util_tx || 0).toFixed(1) }}%</span>
+            </div>
           </div>
-          <div v-if="latestMetric.updated_at" class="info-row">
-            <span class="label">更新時間:</span>
-            <span class="value">{{ formatDateTime(latestMetric.updated_at) }} ({{ getRelativeTime(latestMetric.updated_at) }})</span>
+          <div v-if="latestMetric.updated_at" class="info-row metric-card">
+            <div class="metric-icon time-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
+                <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </div>
+            <div class="metric-content">
+              <span class="label">更新時間</span>
+              <span class="value metric-value">{{ getRelativeTime(latestMetric.updated_at) }}</span>
+            </div>
           </div>
         </template>
       </div>
     </div>
     <!-- 右側：趨勢圖 -->
     <div class="chart-section">
-      <DeviceMetricsChart v-if="metrics && metrics.length > 0" :node-id="node.node_id" :metrics="metrics" :height="chartHeight" />
+      <DeviceMetricsChart v-if="metrics && metrics.length > 0" :node-id="node.node_id" :metrics="metrics"
+        :height="chartHeight" />
       <div v-else-if="loadingMetrics" class="chart-placeholder"> 載入圖表中... </div>
       <div v-else class="chart-placeholder"> 暫無設備指標數據 </div>
     </div>
@@ -57,6 +128,7 @@
 </template>
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { ElMessageBox } from 'element-plus';
 import DeviceMetricsChart from './DeviceMetricsChart.vue';
 
 const props = defineProps({
@@ -206,35 +278,60 @@ const getRelativeTime = (dateString) => {
   }
 };
 
-// 處理移除收藏
-const handleRemove = () => {
-  emit('remove', props.node.node_id);
+// 處理移除收藏（帶確認對話框）
+const handleRemove = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `確定要移除「${props.node.long_name || props.node.short_name || '未知節點'}」的收藏嗎？`,
+      '確認移除收藏',
+      {
+        confirmButtonText: '確定移除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+        center: true,
+        customClass: 'remove-confirm-dialog'
+      }
+    );
+    // 用戶確認後才執行移除
+    emit('remove', props.node.node_id);
+  } catch (error) {
+    // 用戶取消，不執行任何操作
+    // console.log('用戶取消了移除操作');
+  }
 };
 
 // 處理在地圖上查看
 const handleViewOnMap = () => {
   emit('view-on-map', props.node);
 };
+
+// 根據電量獲取電池狀態類別
+const getBatteryClass = (batteryLevel) => {
+  if (batteryLevel >= 60) return 'battery-high';
+  if (batteryLevel >= 30) return 'battery-medium';
+  return 'battery-low';
+};
 </script>
 <style scoped>
 .favorite-item {
-  /* iOS 風格：圓角卡片、毛玻璃效果 */
-  background: rgba(28, 28, 30, 0.8);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 0.5px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  overflow: hidden;
+  /* 現代化設計：漸變背景、毛玻璃效果 */
+  background: linear-gradient(135deg, rgba(20, 20, 25, 0.95) 0%, rgba(30, 30, 40, 0.95) 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  overflow: visible;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   position: relative;
   margin-bottom: 0;
-  /* iOS 風格陰影 */
+  /* 現代化陰影系統 */
   box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.15),
-    0 1px 3px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   /* 確保內容不會溢出 */
   min-height: 0;
 }
@@ -242,10 +339,10 @@ const handleViewOnMap = () => {
 /* 移動端專用樣式 */
 @media (max-width: 767px) {
   .favorite-item {
-    /* 卡片寬度：容器寬度減去左右各 24px，讓左右兩側可以顯示部分內容 */
-    width: calc(100vw - 48px);
-    min-width: calc(100vw - 48px);
-    max-width: calc(100vw - 48px);
+    /* 卡片寬度：容器寬度減去左右各 16px，讓卡片更填滿畫面 */
+    width: calc(100vw - 32px);
+    min-width: calc(100vw - 32px);
+    max-width: calc(100vw - 32px);
     /* 卡片高度：視口高度減去導航欄、搜尋欄、快速導航欄等 */
     height: calc(100vh - var(--navbar-height, 60px) - 48px - 56px - 8px);
     max-height: calc(100vh - var(--navbar-height, 60px) - 48px - 56px - 8px);
@@ -273,15 +370,18 @@ const handleViewOnMap = () => {
   opacity: 1;
   transform: scale(1) translateZ(0);
   z-index: 10;
+  border-color: rgba(255, 255, 255, 0.2);
   box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.25),
-    0 2px 8px rgba(0, 0, 0, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 12px 48px rgba(0, 0, 0, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 /* 節點信息區 - 左側 */
 .node-info-section {
   padding: 14px;
+  padding-top: 50px;
   background: transparent;
   display: flex;
   flex-direction: column;
@@ -311,62 +411,158 @@ const handleViewOnMap = () => {
 
 .node-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding-bottom: 10px;
-  border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 2px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
   flex-shrink: 0;
+  padding-right: 0;
 }
 
 .node-name {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.node-icon-wrapper {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.node-icon-wrapper:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%);
+  transform: scale(1.05);
+}
+
+.node-icon {
+  width: 20px;
+  height: 20px;
+  color: #a78bfa;
+}
+
+.node-name-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.node-name-content strong {
   font-size: 18px;
   letter-spacing: -0.3px;
   color: #ffffff;
   font-weight: 600;
-  /* iOS 風格字體 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.node-icon {
-  font-size: 16px;
+.battery-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
-.remove-btn {
-  /* iOS 風格按鈕 */
-  background: rgba(255, 59, 48, 0.15);
-  border: none;
-  color: #ff3b30;
-  height: 32px;
-  padding: 0 14px;
+.battery-indicator.battery-high {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.battery-indicator.battery-medium {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.battery-indicator.battery-low {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.battery-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* 移除按鈕 - 右上角浮動按鈕 */
+.remove-btn-floating {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 100;
+  /* 現代化浮動按鈕設計 */
+  background: rgba(239, 68, 68, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  white-space: nowrap;
-  font-weight: 500;
-  /* iOS 風格按鈕效果 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
   -webkit-font-smoothing: antialiased;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
-.remove-btn:hover {
-  background: rgba(255, 59, 48, 0.25);
-  transform: scale(0.97);
+.remove-btn-floating svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease;
 }
 
-.remove-btn:active {
-  background: rgba(255, 59, 48, 0.35);
-  transform: scale(0.95);
+.remove-btn-floating:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.remove-btn-floating:hover svg {
+  transform: rotate(90deg);
+}
+
+.remove-btn-floating:active {
+  background: rgba(239, 68, 68, 0.35);
+  transform: scale(1.05);
+}
+
+/* 移動端優化 */
+@media (max-width: 767px) {
+  .remove-btn-floating {
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .remove-btn-floating svg {
+    width: 16px;
+    height: 16px;
+  }
 }
 
 .node-details {
@@ -449,7 +645,7 @@ const handleViewOnMap = () => {
 
   .node-details::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
+    border-radius: 1px;
   }
 
   .node-details::-webkit-scrollbar-thumb:hover {
@@ -464,27 +660,122 @@ const handleViewOnMap = () => {
     justify-content: flex-start;
     gap: 4px;
     min-height: auto;
-    /* 添加背景和邊框，更專業 */
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 0.5px solid rgba(255, 255, 255, 0.08);
+    /* 現代化卡片設計 */
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    /* 確保內容對齊 */
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .info-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
   }
 
   .info-row:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.15);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .info-row:hover::before {
+    opacity: 1;
+  }
+
+  .metric-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .metric-icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .metric-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .battery-icon {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.2) 100%);
+    color: #10b981;
+  }
+
+  .battery-icon.battery-high {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.2) 100%);
+    color: #10b981;
+  }
+
+  .battery-icon.battery-medium {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.2) 100%);
+    color: #f59e0b;
+  }
+
+  .battery-icon.battery-low {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%);
+    color: #ef4444;
+  }
+
+  .channel-icon {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%);
+    color: #60a5fa;
+  }
+
+  .air-icon {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%);
+    color: #a78bfa;
+  }
+
+  .time-icon {
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.2) 0%, rgba(219, 39, 119, 0.2) 100%);
+    color: #f472b6;
+  }
+
+  .metric-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .metric-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+  }
+
+  .time-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
   }
 
   .label {
     /* 更緊湊的字體大小 */
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.6);
     font-weight: 600;
     min-width: auto;
     width: 100%;
@@ -492,8 +783,6 @@ const handleViewOnMap = () => {
     letter-spacing: 0.8px;
     line-height: 1.3;
     margin-bottom: 0;
-    /* 添加微妙的背景 */
-    padding-bottom: 2px;
   }
 
   .value {
@@ -505,10 +794,41 @@ const handleViewOnMap = () => {
     line-height: 1.5;
     word-break: break-word;
     overflow-wrap: break-word;
-    /* 確保數字和文字對齊 */
     display: flex;
     align-items: center;
     min-height: 20px;
+  }
+
+  .metric-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .metric-icon {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+
+  .metric-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .metric-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .metric-value {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .time-value {
+    font-size: 12px;
   }
 
   /* 特殊值的樣式優化 */
@@ -525,7 +845,7 @@ const handleViewOnMap = () => {
   background: rgba(0, 122, 255, 0.15);
   border: 0.5px solid rgba(0, 122, 255, 0.3);
   color: #007aff;
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 2px 8px;
   font-size: 12px;
   font-weight: 500;
@@ -540,7 +860,7 @@ const handleViewOnMap = () => {
     padding: 4px 10px;
     font-size: 12px;
     font-weight: 600;
-    border-radius: 8px;
+    border-radius: 6px;
   }
 }
 
@@ -577,8 +897,8 @@ const handleViewOnMap = () => {
 
 /* 圖表區 - 右側 */
 .chart-section {
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.2);
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.2) 100%);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   min-height: 240px;
@@ -588,8 +908,8 @@ const handleViewOnMap = () => {
   display: flex;
   align-items: stretch;
   justify-content: stretch;
-  border-radius: 0 0 16px 16px;
-  border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
   position: relative;
   box-sizing: border-box;
@@ -600,7 +920,7 @@ const handleViewOnMap = () => {
   .chart-section {
     padding: 8px 12px 12px 12px;
     border-top: none;
-    border-radius: 0 0 16px 16px;
+    border-radius: 0;
     margin-top: 0;
   }
 
@@ -645,7 +965,7 @@ const handleViewOnMap = () => {
     min-width: auto;
     max-width: none;
     margin-bottom: 0;
-    border-radius: 16px;
+    border-radius: 14px;
     /* iOS 風格桌面陰影 */
     box-shadow:
       0 4px 16px rgba(0, 0, 0, 0.12),
@@ -659,6 +979,7 @@ const handleViewOnMap = () => {
   .node-info-section {
     flex: 0 0 320px;
     padding: 18px;
+    padding-top: 50px;
     border-right: 0.5px solid rgba(255, 255, 255, 0.1);
     border-bottom: none;
     max-height: 100%;
@@ -679,7 +1000,7 @@ const handleViewOnMap = () => {
     min-height: 320px;
     height: 320px;
     max-height: 320px;
-    border-radius: 0 16px 16px 0;
+    border-radius: 0;
     border-top: none;
     overflow: hidden;
     box-sizing: border-box;
@@ -704,22 +1025,60 @@ const handleViewOnMap = () => {
     flex-direction: column;
     gap: 6px;
     min-height: auto;
-    /* 專業的卡片式設計 */
-    padding: 14px 16px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 0.5px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    /* 現代化卡片式設計 */
+    padding: 16px 18px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-sizing: border-box;
-    /* 添加微妙的陰影 */
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .info-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
   }
 
   .info-row:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.15);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .info-row:hover::before {
+    opacity: 1;
+  }
+
+  .metric-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+  }
+
+  .metric-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .metric-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .metric-value {
+    font-size: 18px;
   }
 
   .label {
@@ -763,7 +1122,7 @@ const handleViewOnMap = () => {
 
   .info-row {
     padding: 16px 18px;
-    border-radius: 14px;
+    border-radius: 10px;
   }
 
   .label {
@@ -789,6 +1148,7 @@ const handleViewOnMap = () => {
   .node-info-section {
     flex: 0 0 400px;
     padding: 24px;
+    padding-top: 50px;
   }
 
   .chart-section {
@@ -813,7 +1173,7 @@ const handleViewOnMap = () => {
   .info-row {
     flex-direction: column;
     padding: 18px 20px;
-    border-radius: 16px;
+    border-radius: 10px;
   }
 
   .label {
@@ -831,5 +1191,34 @@ const handleViewOnMap = () => {
     font-size: 13px;
     padding: 5px 14px;
   }
+}
+
+/* 確認移除對話框自定義樣式 */
+:deep(.remove-confirm-dialog) {
+  background: rgba(20, 20, 25, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  color: #ffffff;
+}
+
+:deep(.remove-confirm-dialog .el-message-box__title) {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+:deep(.remove-confirm-dialog .el-message-box__message) {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.remove-confirm-dialog .el-button--primary) {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+:deep(.remove-confirm-dialog .el-button--primary:hover) {
+  background: #dc2626;
+  border-color: #dc2626;
 }
 </style>

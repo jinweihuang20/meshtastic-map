@@ -3,6 +3,36 @@
     <!-- 搜尋欄 -->
     <NodeSearchBar :nodes="allNodes" :show-refresh-button="false" mode="favorites" display-mode="icon" theme="dark"
       @toggle-favorite="handleToggleFavoriteFromSearch" />
+    <!-- 撤销通知（當有可恢復的刪除時顯示） -->
+    <transition name="undo-slide">
+      <div v-if="lastRemovedNode" class="undo-notification">
+        <div class="undo-content">
+          <span class="undo-message">
+            <svg class="undo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M3 7V5C3 3.89543 3.89543 3 5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V17"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <path d="M7 12L3 16L7 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" />
+              <path d="M3 16H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            已移除「{{ lastRemovedNode.long_name || lastRemovedNode.short_name || '未知節點' }}」
+            <span class="undo-countdown" v-if="undoCountdown > 0">（{{ undoCountdown }}秒後消失）</span>
+          </span>
+          <button class="undo-btn" @click="undoRemove">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M3 7V5C3 3.89543 3.89543 3 5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V17"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <path d="M7 12L3 16L7 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" />
+              <path d="M3 16H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            復原
+          </button>
+        </div>
+      </div>
+    </transition>
     <div v-if="favoriteNodes.length === 0" class="empty-state">
       <div class="empty-icon">⭐</div>
       <h3>尚未收藏任何節點</h3>
@@ -16,22 +46,14 @@
             <!-- 插入位置指示器（在項目前面） -->
             <div v-if="dragOverIndex === index && insertPosition === 'before' && draggedIndex !== index"
               class="drop-indicator"></div>
-            <button :ref="el => setNavItemRef(el, index)"
-              class="quick-nav-item" :class="{
-                active: activeIndex === index,
-                dragging: draggedIndex === index,
-                'drag-over': dragOverIndex === index
-              }"
-              draggable="true"
-              @click="handleNavItemClick(index, $event)"
-              @dragstart="handleDragStart(index, $event)"
-              @dragend="handleDragEnd"
-              @dragover="handleDragOver(index, $event)"
-              @dragenter="handleDragEnter(index, $event)"
-              @dragleave="handleDragLeave"
-              @drop="handleDrop(index, $event)"
-              @touchstart="handleNavTouchStart(index, $event)"
-              @touchmove="handleNavTouchMove($event)"
+            <button :ref="el => setNavItemRef(el, index)" class="quick-nav-item" :class="{
+              active: activeIndex === index,
+              dragging: draggedIndex === index,
+              'drag-over': dragOverIndex === index
+            }" draggable="true" @click="handleNavItemClick(index, $event)" @dragstart="handleDragStart(index, $event)"
+              @dragend="handleDragEnd" @dragover="handleDragOver(index, $event)"
+              @dragenter="handleDragEnter(index, $event)" @dragleave="handleDragLeave" @drop="handleDrop(index, $event)"
+              @touchstart="handleNavTouchStart(index, $event)" @touchmove="handleNavTouchMove($event)"
               @touchend="handleNavTouchEnd($event)">
               <span class="nav-item-name">{{ node.long_name || node.short_name || '未知節點' }}</span>
             </button>
@@ -40,12 +62,17 @@
               class="drop-indicator"></div>
           </template>
           <!-- 插入到最後的指示器 -->
-          <div v-if="dragOverIndex === favoriteNodes.length - 1 && insertPosition === 'after' && draggedIndex !== favoriteNodes.length - 1" class="drop-indicator"></div>
+          <div
+            v-if="dragOverIndex === favoriteNodes.length - 1 && insertPosition === 'after' && draggedIndex !== favoriteNodes.length - 1"
+            class="drop-indicator"></div>
         </div>
       </div>
-      <div ref="listContainer" class="favorites-container" @scroll="handleScroll" @touchstart="handleTouchStart" @touchend="handleTouchEnd" @touchmove="handleTouchMove">
+      <div ref="listContainer" class="favorites-container" @scroll="handleScroll" @touchstart="handleTouchStart"
+        @touchend="handleTouchEnd" @touchmove="handleTouchMove">
         <div class="favorites-list">
-          <FavoriteNodeCard v-for="(node, index) in favoriteNodes" :key="node.node_id" :ref="el => setCardRef(el, index)" :node="node" :metrics="nodeMetrics[node.node_id] || []" :loading-metrics="loadingMetrics[node.node_id] || false" :chart-height="chartHeight" :card-index="index"
+          <FavoriteNodeCard v-for="(node, index) in favoriteNodes" :key="node.node_id"
+            :ref="el => setCardRef(el, index)" :node="node" :metrics="nodeMetrics[node.node_id] || []"
+            :loading-metrics="loadingMetrics[node.node_id] || false" :chart-height="chartHeight" :card-index="index"
             :active-index="activeIndex" @remove="removeFavorite" @view-on-map="viewOnMap" />
         </div>
       </div>
@@ -64,6 +91,11 @@ const allNodes = ref([]); // 所有節點數據（用於搜索）
 const nodeMetrics = ref({});
 const loadingMetrics = ref({});
 const windowWidth = ref(window.innerWidth);
+const lastRemovedNode = ref(null); // 最近刪除的節點（用於撤销）
+const lastRemovedIndex = ref(null); // 最近刪除的節點在原列表中的索引
+const undoTimeout = ref(null); // 撤销超時計時器
+const undoCountdown = ref(0); // 撤销倒計時（秒）
+const undoCountdownInterval = ref(null); // 倒計時定時器
 const listContainer = ref(null);
 const quickNavScroll = ref(null);
 const cardRefs = ref([]);
@@ -227,12 +259,93 @@ const handleToggleFavoriteFromSearch = (node) => {
 
 // 移除收藏
 const removeFavorite = (nodeId) => {
+  // 找到要刪除的節點及其索引
+  const nodeIndex = favoriteNodes.value.findIndex(node => node.node_id === nodeId);
+  const removedNode = favoriteNodes.value.find(node => node.node_id === nodeId);
+
+  if (removedNode) {
+    // 保存被刪除的節點信息（用於撤销）
+    lastRemovedNode.value = { ...removedNode };
+    lastRemovedIndex.value = nodeIndex;
+
+    // 清除之前的撤销計時器和倒計時
+    if (undoTimeout.value) {
+      clearTimeout(undoTimeout.value);
+    }
+    if (undoCountdownInterval.value) {
+      clearInterval(undoCountdownInterval.value);
+    }
+
+    // 初始化倒計時（5秒）
+    undoCountdown.value = 8;
+
+    // 啟動倒計時
+    undoCountdownInterval.value = setInterval(() => {
+      undoCountdown.value--;
+      if (undoCountdown.value <= 0) {
+        clearInterval(undoCountdownInterval.value);
+        undoCountdownInterval.value = null;
+      }
+    }, 1000);
+
+    // 設置撤销超時（5秒後自動清除撤销選項）
+    undoTimeout.value = setTimeout(() => {
+      lastRemovedNode.value = null;
+      lastRemovedIndex.value = null;
+      undoCountdown.value = 0;
+      // 清除該節點的指標數據（只有在超時後才真正清除）
+      delete nodeMetrics.value[nodeId];
+      delete loadingMetrics.value[nodeId];
+    }, 5000);
+  }
+
+  // 從列表中移除
   favoriteNodes.value = favoriteNodes.value.filter(node => node.node_id !== nodeId);
   localStorage.setItem('meshtastic_favorites', JSON.stringify(favoriteNodes.value));
+};
 
-  // 清除該節點的指標數據
-  delete nodeMetrics.value[nodeId];
-  delete loadingMetrics.value[nodeId];
+// 撤销移除操作
+const undoRemove = () => {
+  if (!lastRemovedNode.value || lastRemovedIndex.value === null) return;
+
+  // 恢復節點到原位置
+  const restoredNode = lastRemovedNode.value;
+  const insertIndex = Math.min(lastRemovedIndex.value, favoriteNodes.value.length);
+
+  favoriteNodes.value.splice(insertIndex, 0, restoredNode);
+  localStorage.setItem('meshtastic_favorites', JSON.stringify(favoriteNodes.value));
+
+  // 如果節點的指標數據還在，保留它；否則重新載入
+  if (!nodeMetrics.value[restoredNode.node_id]) {
+    loadingMetrics.value[restoredNode.node_id] = true;
+    fetchDeviceMetrics(restoredNode.node_id).then(metrics => {
+      nodeMetrics.value[restoredNode.node_id] = metrics;
+      loadingMetrics.value[restoredNode.node_id] = false;
+    });
+  }
+
+  // 清除撤销狀態
+  if (undoTimeout.value) {
+    clearTimeout(undoTimeout.value);
+    undoTimeout.value = null;
+  }
+  if (undoCountdownInterval.value) {
+    clearInterval(undoCountdownInterval.value);
+    undoCountdownInterval.value = null;
+  }
+  lastRemovedNode.value = null;
+  lastRemovedIndex.value = null;
+  undoCountdown.value = 0;
+
+  // 觸發自定義事件
+  window.dispatchEvent(new CustomEvent('favorites-updated'));
+
+  // 如果是移動端，滾動到恢復的節點
+  if (windowWidth.value < 768) {
+    nextTick(() => {
+      scrollToCard(insertIndex);
+    });
+  }
 };
 
 
@@ -263,9 +376,9 @@ const scrollToCard = async (index) => {
   isScrolling.value = true;
   const container = listContainer.value;
   const containerWidth = container.clientWidth;
-  const cardWidth = containerWidth - 48; // calc(100vw - 48px)，左右各留 24px
+  const cardWidth = containerWidth - 32; // calc(100vw - 32px)，左右各留 16px
   const gap = 12;
-  const paddingLeft = 24; // .favorites-list 的 padding-left
+  const paddingLeft = 16; // .favorites-list 的 padding-left
 
   // 計算卡片左邊緣位置
   const cardLeftEdge = paddingLeft + index * (cardWidth + gap);
@@ -920,10 +1033,10 @@ const snapToNearestCard = (deltaX = 0, velocity = 0) => {
   const container = listContainer.value;
   const scrollLeft = container.scrollLeft;
   const containerWidth = container.clientWidth;
-  const cardWidth = containerWidth - 48; // calc(100vw - 48px)，左右各留 24px
+  const cardWidth = containerWidth - 32; // calc(100vw - 32px)，左右各留 16px
   const gap = 12;
   const cardTotalWidth = cardWidth + gap;
-  const paddingLeft = 24; // .favorites-list 的 padding-left
+  const paddingLeft = 16; // .favorites-list 的 padding-left
 
   // 計算當前滾動位置對應的卡片索引
   // 考慮 padding-left，計算實際的卡片位置
@@ -1003,10 +1116,10 @@ const handleScroll = () => {
   const container = listContainer.value;
   const scrollLeft = container.scrollLeft;
   const containerWidth = container.clientWidth;
-  const cardWidth = containerWidth - 48; // calc(100vw - 48px)，左右各留 24px
+  const cardWidth = containerWidth - 32; // calc(100vw - 32px)，左右各留 16px
   const gap = 12;
   const cardTotalWidth = cardWidth + gap;
-  const paddingLeft = 24; // .favorites-list 的 padding-left
+  const paddingLeft = 16; // .favorites-list 的 padding-left
 
   // 計算當前可見的卡片索引（考慮 padding-left）
   const adjustedScrollLeft = scrollLeft + paddingLeft;
@@ -1074,6 +1187,14 @@ onUnmounted(() => {
     clearTimeout(longPressTimer.value);
     longPressTimer.value = null;
   }
+  if (undoTimeout.value) {
+    clearTimeout(undoTimeout.value);
+    undoTimeout.value = null;
+  }
+  if (undoCountdownInterval.value) {
+    clearInterval(undoCountdownInterval.value);
+    undoCountdownInterval.value = null;
+  }
 });
 
 // 處理 localStorage 變化事件（跨標籤頁）
@@ -1105,6 +1226,137 @@ defineExpose({
   position: relative;
   display: flex;
   flex-direction: column;
+}
+
+/* 撤销通知 */
+.undo-notification {
+  position: sticky;
+  top: calc(var(--navbar-height, 60px));
+  z-index: 200;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(20, 20, 25, 0.98) 0%, rgba(30, 30, 40, 0.98) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.undo-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 100%;
+}
+
+.undo-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.undo-icon {
+  width: 18px;
+  height: 18px;
+  color: #60a5fa;
+  flex-shrink: 0;
+}
+
+.undo-countdown {
+  color: rgba(245, 158, 11, 0.9);
+  font-weight: 500;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.undo-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 8px;
+  color: #a78bfa;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  flex-shrink: 0;
+  -webkit-font-smoothing: antialiased;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.undo-btn svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.3s ease;
+}
+
+.undo-btn:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%);
+  border-color: rgba(99, 102, 241, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.undo-btn:hover svg {
+  transform: translateX(-2px);
+}
+
+.undo-btn:active {
+  transform: translateY(0);
+}
+
+/* 撤销通知動畫 */
+.undo-slide-enter-active,
+.undo-slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.undo-slide-enter-from {
+  opacity: 0;
+  transform: translateY(-100%);
+}
+
+.undo-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-100%);
+}
+
+/* 移動端優化 */
+@media (max-width: 767px) {
+  .undo-notification {
+    padding: 10px 12px;
+  }
+
+  .undo-message {
+    font-size: 13px;
+  }
+
+  .undo-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .undo-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .undo-btn svg {
+    width: 14px;
+    height: 14px;
+  }
 }
 
 .favorites-container {
@@ -1436,9 +1688,9 @@ defineExpose({
     flex-direction: row;
     gap: 12px;
     width: max-content;
-    /* 左右各留 24px 空間顯示相鄰卡片的部分內容 */
-    padding-left: 24px;
-    padding-right: 24px;
+    /* 左右各留 16px 空間顯示相鄰卡片的部分內容 */
+    padding-left: 16px;
+    padding-right: 16px;
     min-width: 100%;
     /* 優化滾動性能 */
     will-change: transform;

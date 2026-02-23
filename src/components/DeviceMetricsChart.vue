@@ -9,10 +9,10 @@
         <el-select v-model="selectedDays" size="small" class="days-select" @change="handleDaysChange">
           <el-option v-for="option in dayOptions" :key="option.value" :label="option.label" :value="option.value" />
         </el-select>
-        <!-- 放大按鈕 -->
+        <!-- 放大按鈕
         <button class="zoom-btn" @click="openFullscreen" title="放大圖表">
           🔍
-        </button>
+        </button> -->
       </div>
       <canvas :id="canvasId" ref="chartCanvas"></canvas>
     </div>
@@ -107,18 +107,70 @@ const dayOptions = [
 
 // 決定使用哪個 metrics（優先使用 props.metrics，否則使用內部從 API 獲取的）
 const displayMetrics = computed(() => {
+  let metrics = [];
+
   // 如果父組件提供了 metrics，需要根據選擇的天數過濾
   if (props.metrics && props.metrics.length > 0) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - selectedDays.value);
 
-    return props.metrics.filter(m => {
+    metrics = props.metrics.filter(m => {
       const metricDate = new Date(m.created_at);
       return metricDate >= cutoffDate;
     });
+  } else {
+    // 否則使用內部從 API 獲取的數據（已經根據天數過濾）
+    metrics = internalMetrics.value;
   }
-  // 否則使用內部從 API 獲取的數據（已經根據天數過濾）
-  return internalMetrics.value;
+
+  // 根據 created_at 去除重複數據，保留第一個出現的記錄
+  const seenCreatedAt = new Set();
+  const uniqueByCreatedAt = metrics.filter(metric => {
+    if (!metric.created_at) {
+      // 如果沒有 created_at，保留該記錄
+      return true;
+    }
+    if (seenCreatedAt.has(metric.created_at)) {
+      // 已經見過這個 created_at，跳過
+      return false;
+    }
+    // 第一次見到這個 created_at，保留並記錄
+    seenCreatedAt.add(metric.created_at);
+    return true;
+  });
+
+  // 去除連續數據中 channel_utilization、air_util_tx 和 battery_level 都無變化的重複數據
+  // 只保留第一筆數據
+  const result = [];
+  for (let i = 0; i < uniqueByCreatedAt.length; i++) {
+    const current = uniqueByCreatedAt[i];
+
+    // 第一筆數據總是保留
+    if (i === 0) {
+      result.push(current);
+      continue;
+    }
+
+    const previous = uniqueByCreatedAt[i - 1];
+
+    // 比較 channel_utilization、air_util_tx 和 battery_level
+    const channelUtilSame = current.channel_utilization === previous.channel_utilization ||
+      (current.channel_utilization == null && previous.channel_utilization == null);
+    const airUtilSame = current.air_util_tx === previous.air_util_tx ||
+      (current.air_util_tx == null && previous.air_util_tx == null);
+    const batterySame = current.battery_level === previous.battery_level ||
+      (current.battery_level == null && previous.battery_level == null);
+
+    // 如果三個值都相同，跳過當前數據（保留第一筆）
+    if (channelUtilSame && airUtilSame && batterySame) {
+      continue;
+    }
+
+    // 有變化，保留當前數據
+    result.push(current);
+  }
+
+  return result;
 });
 
 // 從 API 獲取設備指標數據
