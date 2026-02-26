@@ -15,6 +15,14 @@
             <span class="info-value">{{ nodeIdHex || nodeId }}</span>
           </div>
           <div class="info-item">
+            <span class="info-label">Role</span>
+            <span class="info-value">
+              <el-tag effect="dark">
+                {{ roleName || 'CLIENT BASE' }}
+              </el-tag>
+            </span>
+          </div>
+          <div class="info-item">
             <span class="info-label">硬體型號</span>
             <span class="info-value">{{ hardwareModelName || '未知' }}</span>
           </div>
@@ -72,6 +80,7 @@ import { ref, computed, watch } from 'vue';
 import { ElDrawer, ElIcon } from 'element-plus';
 import { Loading } from '@element-plus/icons-vue';
 import DeviceMetricsChart from './DeviceMetricsChart.vue';
+import { isNodeFavorited, toggleFavorite as toggleFavoriteUtil } from '../utils/favoriteUtils.js';
 
 const props = defineProps({
   visible: {
@@ -97,6 +106,7 @@ const props = defineProps({
   batteryLevel: Number,
   altitude: Number,
   lastConnectedTime: String,
+  roleName: String,
   fetchMetrics: {
     type: Function,
     required: true
@@ -146,56 +156,29 @@ watch(drawerVisible, (newVal) => {
 
 // 檢查是否已收藏
 const checkFavorited = () => {
-  const stored = localStorage.getItem('meshtastic_favorites');
-  if (stored) {
-    try {
-      const favorites = JSON.parse(stored);
-      isFavorited.value = favorites.some(node => node.node_id === props.nodeId);
-    } catch (error) {
-      console.error('檢查收藏狀態失敗:', error);
-    }
-  }
+  isFavorited.value = isNodeFavorited(props.nodeId);
 };
 
 // 切換收藏狀態
 const toggleFavorite = () => {
-  const stored = localStorage.getItem('meshtastic_favorites');
-  let favorites = [];
+  // 構建節點數據對象
+  const nodeData = {
+    node_id: props.nodeId,
+    node_id_hex: props.nodeIdHex,
+    long_name: props.nodeName,
+    short_name: props.nodeName,
+    hardware_model_name: props.hardwareModelName,
+    hasConnection: props.hasConnection,
+    latitude: props.latitude,
+    longitude: props.longitude,
+    battery_level: props.batteryLevel,
+    altitude: props.altitude,
+    role_name: props.roleName || null,
+    mqtt_connection_state_updated_at: props.hasConnection ? new Date().toISOString() : null
+  };
 
-  if (stored) {
-    try {
-      favorites = JSON.parse(stored);
-    } catch (error) {
-      console.error('讀取收藏失敗:', error);
-    }
-  }
-
-  if (isFavorited.value) {
-    // 移除收藏
-    favorites = favorites.filter(node => node.node_id !== props.nodeId);
-    isFavorited.value = false;
-  } else {
-    // 添加收藏
-    const nodeData = {
-      node_id: props.nodeId,
-      node_id_hex: props.nodeIdHex,
-      long_name: props.nodeName,
-      short_name: props.nodeName,
-      hardware_model_name: props.hardwareModelName,
-      hasConnection: props.hasConnection,
-      latitude: props.latitude,
-      longitude: props.longitude,
-      battery_level: props.batteryLevel,
-      altitude: props.altitude
-    };
-    favorites.push(nodeData);
-    isFavorited.value = true;
-  }
-
-  localStorage.setItem('meshtastic_favorites', JSON.stringify(favorites));
-
-  // 觸發自定義事件，通知其他組件（如同窗口的 Favorites 組件）數據已更新
-  window.dispatchEvent(new CustomEvent('favorites-updated'));
+  // 使用統一的收藏工具函數
+  isFavorited.value = toggleFavoriteUtil(nodeData);
 };
 
 // 加載數據

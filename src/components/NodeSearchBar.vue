@@ -1,11 +1,13 @@
 <template>
-  <div class="search-bar" :class="{ 
+  <div class="search-bar" :class="{
     'icon-mode': shouldUseIconMode && !isExpanded,
     'theme-dark': theme === 'dark',
     'theme-light': theme === 'light'
   }">
     <!-- 搜尋結果列表 -->
-    <div v-show="(!shouldUseIconMode || isExpanded) && searchQuery && (isSearching || filteredNodes.length > 0 || searchQuery)" class="search-results">
+    <div
+      v-show="(!shouldUseIconMode || isExpanded) && searchQuery && (isSearching || filteredNodes.length > 0 || searchQuery)"
+      class="search-results">
       <div class="results-header">
         <span v-if="isSearching">搜尋中...</span>
         <span v-else-if="filteredNodes.length > 0">找到 {{ filteredNodes.length }} 個節點</span>
@@ -42,8 +44,7 @@
     <!-- 搜尋輸入框 -->
     <div class="search-container" :class="{ 'expanded': isExpanded || !shouldUseIconMode }">
       <!-- 圖標模式：只顯示搜索圖標 -->
-      <button v-if="shouldUseIconMode && !isExpanded" class="search-icon-button" @click="toggleExpand"
-        :title="'展開搜尋'">
+      <button v-if="shouldUseIconMode && !isExpanded" class="search-icon-button" @click="toggleExpand" :title="'展開搜尋'">
         <el-icon>
           <Search />
         </el-icon>
@@ -66,8 +67,7 @@
           </button>
         </div>
         <!-- 圖標模式：顯示收起按鈕 -->
-        <button v-if="shouldUseIconMode && isExpanded" class="collapse-button" @click="toggleCollapse"
-          :title="'收起搜尋'">
+        <button v-if="shouldUseIconMode && isExpanded" class="collapse-button" @click="toggleCollapse" :title="'收起搜尋'">
           <el-icon>
             <Close />
           </el-icon>
@@ -81,6 +81,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { Refresh, Close, Search } from '@element-plus/icons-vue';
 import { getNodeColorStyle } from '../utils/colorUtils.js';
+import { getFavorites } from '../utils/favoriteUtils.js';
 
 // Props
 const props = defineProps({
@@ -159,19 +160,13 @@ const totalNodesCount = computed(() => props.nodes.length);
 
 // 載入收藏列表
 const loadFavorites = () => {
-  const stored = localStorage.getItem('meshtastic_favorites');
-  if (stored) {
-    try {
-      favorites.value = JSON.parse(stored);
-    } catch (error) {
-      console.error('讀取收藏失敗:', error);
-      favorites.value = [];
-    }
-  }
+  // 使用統一的收藏工具函數獲取收藏列表
+  favorites.value = getFavorites();
 };
 
 // 檢查節點是否已收藏
 const isNodeFavorited = (nodeId) => {
+  // 使用本地的 favorites.value 以確保響應式更新
   return favorites.value.some(node => node.node_id === nodeId);
 };
 
@@ -434,9 +429,14 @@ const handleNodeSelect = (node) => {
 
 // 處理切換收藏
 const handleToggleFavorite = (node) => {
+  // emit 事件，讓父組件處理收藏邏輯（父組件會調用 toggleFavoriteUtil）
   emit('toggle-favorite', node);
-  // 重新載入收藏列表以更新狀態
-  loadFavorites();
+  // 父組件處理後會立即觸發 favorites-updated 事件
+  // handleFavoritesUpdated 監聽器會自動調用 loadFavorites() 更新本地狀態
+  // 但為了確保立即響應，我們也在這裡使用 nextTick 更新
+  nextTick(() => {
+    loadFavorites();
+  });
 };
 
 // 處理刷新
@@ -471,6 +471,7 @@ watch(() => props.nodes, () => {
 
 // 監聽收藏變化事件
 const handleFavoritesUpdated = () => {
+  // 更新收藏列表，這會觸發響應式更新
   loadFavorites();
 };
 

@@ -18,12 +18,8 @@
     <hr style="margin: 10px 0;">
 
     <div class="chart-section" :style="{ height: chartHeight }">
-      <DeviceMetricsChart
-        v-if="!loading && metrics.length > 0"
-        :node-id="nodeId"
-        :metrics="metrics"
-        :height="chartHeight"
-      />
+      <DeviceMetricsChart v-if="!loading && metrics.length > 0" :node-id="nodeId" :metrics="metrics"
+        :height="chartHeight" />
       <div v-else-if="loading" class="loading-message">載入圖表中...</div>
       <div v-else class="no-data-message">暫無設備指標數據</div>
     </div>
@@ -33,6 +29,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import DeviceMetricsChart from './DeviceMetricsChart.vue';
+import { isNodeFavorited, toggleFavorite as toggleFavoriteUtil } from '../utils/favoriteUtils.js';
 
 const props = defineProps({
   nodeId: {
@@ -54,6 +51,7 @@ const props = defineProps({
   batteryLevel: Number,
   altitude: Number,
   lastConnectedTime: String,
+  roleName: String,
   chartHeight: {
     type: String,
     default: '250px'
@@ -81,53 +79,29 @@ const lastConnected = computed(() => {
 
 // 檢查是否已收藏
 const checkFavorited = () => {
-  const stored = localStorage.getItem('meshtastic_favorites');
-  if (stored) {
-    try {
-      const favorites = JSON.parse(stored);
-      isFavorited.value = favorites.some(node => node.node_id === props.nodeId);
-    } catch (error) {
-      console.error('檢查收藏狀態失敗:', error);
-    }
-  }
+  isFavorited.value = isNodeFavorited(props.nodeId);
 };
 
 // 切換收藏狀態
 const toggleFavorite = () => {
-  const stored = localStorage.getItem('meshtastic_favorites');
-  let favorites = [];
+  // 構建節點數據對象
+  const nodeData = {
+    node_id: props.nodeId,
+    node_id_hex: props.nodeIdHex,
+    long_name: props.nodeName,
+    short_name: props.nodeName,
+    hardware_model_name: props.hardwareModelName,
+    hasConnection: props.hasConnection,
+    latitude: props.latitude,
+    longitude: props.longitude,
+    battery_level: props.batteryLevel,
+    altitude: props.altitude,
+    role_name: props.roleName || null,
+    mqtt_connection_state_updated_at: props.hasConnection ? new Date().toISOString() : null
+  };
 
-  if (stored) {
-    try {
-      favorites = JSON.parse(stored);
-    } catch (error) {
-      console.error('讀取收藏失敗:', error);
-    }
-  }
-
-  if (isFavorited.value) {
-    // 移除收藏
-    favorites = favorites.filter(node => node.node_id !== props.nodeId);
-    isFavorited.value = false;
-  } else {
-    // 添加收藏
-    const nodeData = {
-      node_id: props.nodeId,
-      node_id_hex: props.nodeIdHex,
-      long_name: props.nodeName,
-      short_name: props.nodeName,
-      hardware_model_name: props.hardwareModelName,
-      hasConnection: props.hasConnection,
-      latitude: props.latitude,
-      longitude: props.longitude,
-      battery_level: props.batteryLevel,
-      altitude: props.altitude
-    };
-    favorites.push(nodeData);
-    isFavorited.value = true;
-  }
-
-  localStorage.setItem('meshtastic_favorites', JSON.stringify(favorites));
+  // 使用統一的收藏工具函數
+  isFavorited.value = toggleFavoriteUtil(nodeData);
 };
 
 // 加載指標數據

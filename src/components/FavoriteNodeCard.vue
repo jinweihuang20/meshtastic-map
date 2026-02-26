@@ -24,6 +24,7 @@
           </div>
           <div class="node-name-content">
             <strong>{{ node.long_name || node.short_name || '未知節點' }}</strong>
+            <div style="font-size: smaller; color: #666;"> {{ node.role_name || 'CLIENT BASE' }}</div>
           </div>
         </div>
       </div>
@@ -42,6 +43,7 @@
           <span class="label">型號</span>
           <span class="value">{{ node.hardware_model_name || '未知' }}</span>
         </div>
+
         <div class="info-row">
           <span class="label">位置</span>
           <span class="value">{{ formatCoordinates(node.latitude, node.longitude) }}</span>
@@ -119,6 +121,7 @@
     </div>
     <!-- 右側：趨勢圖 -->
     <div class="chart-section">
+      <!-- {{ node }} -->
       <DeviceMetricsChart v-if="metrics && metrics.length > 0" :node-id="node.node_id" :metrics="metrics"
         :height="chartHeight" />
       <div v-else-if="loadingMetrics" class="chart-placeholder"> 載入圖表中... </div>
@@ -460,7 +463,7 @@ const getShortNameTagStyle = () => {
 .node-name-content {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
   flex: 1;
   min-width: 0;
 }

@@ -83,6 +83,7 @@
 import { ref, computed, onMounted, onUnmounted, onActivated, defineEmits, nextTick } from 'vue';
 import NodeSearchBar from './NodeSearchBar.vue';
 import FavoriteNodeCard from './FavoriteNodeCard.vue';
+import { toggleFavorite as toggleFavoriteUtil, getFavorites, removeFavorite as removeFavoriteUtil, addFavorite as addFavoriteUtil, saveFavorites } from '../utils/favoriteUtils.js';
 
 const emit = defineEmits(['view-on-map']);
 
@@ -191,57 +192,35 @@ const loadAllNodes = async () => {
 
 // 加載收藏的節點
 const loadFavorites = async () => {
-  const stored = localStorage.getItem('meshtastic_favorites');
-  if (stored) {
-    try {
-      favoriteNodes.value = JSON.parse(stored);
+  // 使用統一的收藏工具函數獲取收藏列表
+  favoriteNodes.value = getFavorites();
 
-      // 為每個節點加載指標數據
-      for (const node of favoriteNodes.value) {
-        loadingMetrics.value[node.node_id] = true;
-        const metrics = await fetchDeviceMetrics(node.node_id);
-        nodeMetrics.value[node.node_id] = metrics;
-        loadingMetrics.value[node.node_id] = false;
-      }
-    } catch (error) {
-      console.error('加載收藏失敗:', error);
-      favoriteNodes.value = [];
-    }
+  // 為每個節點加載指標數據
+  for (const node of favoriteNodes.value) {
+    loadingMetrics.value[node.node_id] = true;
+    const metrics = await fetchDeviceMetrics(node.node_id);
+    nodeMetrics.value[node.node_id] = metrics;
+    loadingMetrics.value[node.node_id] = false;
   }
 };
 
 // 處理從搜索組件切換收藏
 const handleToggleFavoriteFromSearch = (node) => {
   const nodeId = node.node_id;
-  const isFavorited = favoriteNodes.value.some(n => n.node_id === nodeId);
+  const wasFavorited = favoriteNodes.value.some(n => n.node_id === nodeId);
 
-  if (isFavorited) {
-    // 移除收藏
-    favoriteNodes.value = favoriteNodes.value.filter(n => n.node_id !== nodeId);
+  // 使用統一的收藏工具函數
+  toggleFavoriteUtil(node);
+
+  // 重新載入收藏列表
+  loadFavorites();
+
+  // 如果從已收藏變為未收藏，清除指標數據
+  if (wasFavorited) {
     delete nodeMetrics.value[nodeId];
     delete loadingMetrics.value[nodeId];
   } else {
-    // 添加收藏
-    const lat = node.latitude / 10000000;
-    const lng = node.longitude / 10000000;
-
-    const nodeData = {
-      node_id: node.node_id,
-      node_id_hex: node.node_id_hex,
-      long_name: node.long_name,
-      short_name: node.short_name,
-      hardware_model_name: node.hardware_model_name,
-      hasConnection: node.mqtt_connection_state_updated_at !== null &&
-        node.mqtt_connection_state_updated_at !== undefined &&
-        node.mqtt_connection_state_updated_at !== '',
-      latitude: lat,
-      longitude: lng,
-      battery_level: node.battery_level,
-      altitude: node.altitude
-    };
-    favoriteNodes.value.push(nodeData);
-
-    // 為新節點加載指標數據
+    // 如果從未收藏變為已收藏，為新節點加載指標數據
     (async () => {
       loadingMetrics.value[nodeId] = true;
       const metrics = await fetchDeviceMetrics(nodeId);
@@ -249,12 +228,6 @@ const handleToggleFavoriteFromSearch = (node) => {
       loadingMetrics.value[nodeId] = false;
     })();
   }
-
-  // 保存到 localStorage
-  localStorage.setItem('meshtastic_favorites', JSON.stringify(favoriteNodes.value));
-
-  // 觸發自定義事件
-  window.dispatchEvent(new CustomEvent('favorites-updated'));
 };
 
 // 移除收藏
@@ -301,7 +274,8 @@ const removeFavorite = (nodeId) => {
 
   // 從列表中移除
   favoriteNodes.value = favoriteNodes.value.filter(node => node.node_id !== nodeId);
-  localStorage.setItem('meshtastic_favorites', JSON.stringify(favoriteNodes.value));
+  // 使用統一的收藏工具函數保存
+  saveFavorites(favoriteNodes.value);
 };
 
 // 撤销移除操作
@@ -313,7 +287,8 @@ const undoRemove = () => {
   const insertIndex = Math.min(lastRemovedIndex.value, favoriteNodes.value.length);
 
   favoriteNodes.value.splice(insertIndex, 0, restoredNode);
-  localStorage.setItem('meshtastic_favorites', JSON.stringify(favoriteNodes.value));
+  // 使用統一的收藏工具函數保存
+  saveFavorites(favoriteNodes.value);
 
   // 如果節點的指標數據還在，保留它；否則重新載入
   if (!nodeMetrics.value[restoredNode.node_id]) {
@@ -930,11 +905,8 @@ const reorderNodes = (fromIndex, toIndex) => {
 
   favoriteNodes.value = newNodes;
 
-  // 保存到 localStorage
-  localStorage.setItem('meshtastic_favorites', JSON.stringify(favoriteNodes.value));
-
-  // 觸發自定義事件
-  window.dispatchEvent(new CustomEvent('favorites-updated'));
+  // 使用統一的收藏工具函數保存（會自動觸發 favorites-updated 事件）
+  saveFavorites(favoriteNodes.value);
 
   // 更新活動索引（如果受影響）
   if (activeIndex.value === fromIndex) {

@@ -7,8 +7,8 @@
       :node-name="selectedNode.nodeName" :hardware-model-name="selectedNode.hardwareModelName"
       :has-connection="selectedNode.hasConnection" :latitude="selectedNode.latitude" :longitude="selectedNode.longitude"
       :battery-level="selectedNode.batteryLevel" :altitude="selectedNode.altitude"
-      :last-connected-time="selectedNode.lastConnectedTime" :fetch-metrics="fetchDeviceMetrics"
-      @close="handleDrawerClose" />
+      :last-connected-time="selectedNode.lastConnectedTime" :role-name="selectedNode.roleName"
+      :fetch-metrics="fetchDeviceMetrics" @close="handleDrawerClose" />
 
     <!-- 狀態欄 -->
     <div v-if="loading" class="status-bar">
@@ -43,6 +43,7 @@ import 'leaflet.markercluster';
 import { getNodeColorStyle, isDarkColor } from '../utils/colorUtils.js';
 import NodeDrawer from './NodeDrawer.vue';
 import NodeSearchBar from './NodeSearchBar.vue';
+import { toggleFavorite as toggleFavoriteUtil, getFavorites } from '../utils/favoriteUtils.js';
 
 const mapContainer = ref(null);
 const map = ref(null);
@@ -65,7 +66,8 @@ const selectedNode = ref({
   longitude: 0,
   batteryLevel: null,
   altitude: null,
-  lastConnectedTime: null
+  lastConnectedTime: null,
+  roleName: null
 });
 
 // 地圖標記相關
@@ -359,7 +361,8 @@ const openNodeDrawer = (node) => {
     longitude: lng,
     batteryLevel: node.battery_level,
     altitude: node.altitude,
-    lastConnectedTime: node.mqtt_connection_state_updated_at
+    lastConnectedTime: node.mqtt_connection_state_updated_at,
+    roleName: node.role_name || null
   };
 
   drawerVisible.value = true;
@@ -372,15 +375,8 @@ const handleDrawerClose = () => {
 
 // 載入收藏列表
 const loadFavorites = () => {
-  const stored = localStorage.getItem('meshtastic_favorites');
-  if (stored) {
-    try {
-      favorites.value = JSON.parse(stored);
-    } catch (error) {
-      console.error('讀取收藏失敗:', error);
-      favorites.value = [];
-    }
-  }
+  // 使用統一的收藏工具函數獲取收藏列表
+  favorites.value = getFavorites();
 };
 
 // 檢查節點是否已收藏
@@ -390,38 +386,10 @@ const isNodeFavorited = (nodeId) => {
 
 // 從搜尋結果切換收藏狀態
 const toggleFavoriteFromSearch = (node) => {
-  const nodeId = node.node_id;
-
-  if (isNodeFavorited(nodeId)) {
-    // 移除收藏
-    favorites.value = favorites.value.filter(n => n.node_id !== nodeId);
-  } else {
-    // 添加收藏
-    const lat = node.latitude / 10000000;
-    const lng = node.longitude / 10000000;
-
-    const nodeData = {
-      node_id: node.node_id,
-      node_id_hex: node.node_id_hex,
-      long_name: node.long_name,
-      short_name: node.short_name,
-      hardware_model_name: node.hardware_model_name,
-      hasConnection: node.mqtt_connection_state_updated_at !== null &&
-        node.mqtt_connection_state_updated_at !== undefined &&
-        node.mqtt_connection_state_updated_at !== '',
-      latitude: lat,
-      longitude: lng,
-      battery_level: node.battery_level,
-      altitude: node.altitude
-    };
-    favorites.value.push(nodeData);
-  }
-
-  // 保存到 localStorage
-  localStorage.setItem('meshtastic_favorites', JSON.stringify(favorites.value));
-
-  // 觸發自定義事件，通知其他組件（如同窗口的 Favorites 組件）數據已更新
-  window.dispatchEvent(new CustomEvent('favorites-updated'));
+  // 使用統一的收藏工具函數
+  toggleFavoriteUtil(node);
+  // 重新載入收藏列表以更新本地狀態
+  loadFavorites();
 };
 
 // 選擇節點處理（從列表點擊）
